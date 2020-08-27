@@ -112,13 +112,13 @@ Choose the class c which is the most probable given the observation o
 * gather probability estimates from the annotated corpus
 
 #### Estimating the prior
-<img src="./res/screenshot2.png" style="width: 200px;"/>
+<img src="./res/screenshot2.png" style="width: 100px;"/>
 
 C(c1) is the number of words for that class c1
 N is the total number of words
 
 #### Smoothing
-<img src="./res/screenshot3.png" style="width: 500px;"/>
+<img src="./res/screenshot3.png" style="width: 300px;"/>
 
 `N = C(c1) + C(c2) + C(c3) + ...`
 
@@ -131,7 +131,7 @@ we have more data compared to using whole words
 - ins[l, m]: number of times the extraneous letter m was inserted after l
 - del[k, l]: number of times the letter l was deleted from the correct letter sequence kl
 
-<img src="./res/screenshot4.png" style="width: 500px;"/>
+<img src="./res/screenshot4.png" style="width: 200px;"/>
 
 ### Minimum edit distance
 - Multiple error misspellings
