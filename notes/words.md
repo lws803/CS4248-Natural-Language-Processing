@@ -105,5 +105,36 @@ Problem: Given an observation o and a set of classes C, infer the class c that o
 
 Choose the class c which is the most probable given the observation o
 
-<!-- TODO: Find a way to insert mathematical expressions here -->
+<img src="./res/screenshot1.png" style="width: 300px;"/>
 
+* need a corpus of annotated text where misspelled words are identified and labeled
+* supervised ML
+* gather probability estimates from the annotated corpus
+
+#### Estimating the prior
+<img src="./res/screenshot2.png" style="width: 200px;"/>
+
+C(c1) is the number of words for that class c1
+N is the total number of words
+
+#### Smoothing
+<img src="./res/screenshot3.png" style="width: 500px;"/>
+
+`N = C(c1) + C(c2) + C(c3) + ...`
+
+#### Estimating the likelihood P(o|c)
+- Use letter frequencies in annotated training corpus to approximate P(o|c). We do this becuase
+we have more data compared to using whole words
+- `o` is the ovserved misspelled word
+- sub[m, l]: number of times the correct later l was typed as m
+- trans[k, l]: number of times the correct letter sequence kl was typed as lk
+- ins[l, m]: number of times the extraneous letter m was inserted after l
+- del[k, l]: number of times the letter l was deleted from the correct letter sequence kl
+
+<img src="./res/screenshot4.png" style="width: 500px;"/>
+
+### Minimum edit distance
+- Multiple error misspellings
+- Minimum edit distance between two strings: insertion, deletion, substitution
+
+> See some tips on https://www.youtube.com/watch?v=Thv3TfsZVpw
