@@ -58,3 +58,10 @@ The class of regular languages over Σ is formally defined as:
     * L1 ∪ L2
     * L1 *, L1 repeated 0 or more times
 * regular languages are equivalent to FSA
+
+## Converting NFA to regex
+### References
+1. Tutorial (NFSM): https://www.youtube.com/watch?v=OKFrju0HB7k
+2. Tutorial (DFSM): https://www.youtube.com/watch?v=SmT1DXLl3f4
+2. Online converter: http://ivanzuzak.info/noam/webapps/fsm2regex/
+

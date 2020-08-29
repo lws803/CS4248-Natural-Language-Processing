@@ -136,5 +136,12 @@ we have more data compared to using whole words
 ### Minimum edit distance
 - Multiple error misspellings
 - Minimum edit distance between two strings: insertion, deletion, substitution
+- Diagonal comparisons are substitutions
+- Vertical/ horizontal comparisons are insertion or deletion
 
-> See some tips on https://www.youtube.com/watch?v=Thv3TfsZVpw
+We should choose the one which gives us the minimum score out of the 3 comparisons together with
+their costs.
+
+#### References
+1. See some tips on https://www.youtube.com/watch?v=We3YDTzNXEk
+2. Simulator http://www.let.rug.nl/~kleiweg/lev/
