@@ -7,6 +7,30 @@ import datetime
 import pickle
 
 
+def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
+    curr_tag_given_previous_tag = {}
+    curr_word_given_tag = {}
+    for k, v in pos_bigrams.items():
+        prev_pos = k[0]
+        curr_tag_given_previous_tag[(k[1], k[0])] = (
+            (v + 1) / (len(pos_count) + pos_count[prev_pos])
+        )
+    for k, v in word_pos_pair.items():
+        pos = k[0]
+        curr_word_given_tag[(k[1], k[0])] = (
+            (v + 1) / (len(pos_count) + pos_count[pos])
+        )
+    return curr_tag_given_previous_tag, curr_word_given_tag
+
+
+def witten_bell_smoothing():
+    raise NotImplementedError
+
+
+def kneser_ney_smoothing():
+    raise NotImplementedError
+
+
 class HiddenMarkovModel:
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
@@ -18,38 +42,17 @@ class HiddenMarkovModel:
 
         self.compute_emission_probabilities()
 
-    def witten_bell_smoothing(self):
-        raise NotImplementedError
-
-    def kneser_ney_smoothing(self):
-        raise NotImplementedError
-
-    def ao_smoothing(self):
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in self.pos_bigrams.items():
-            prev_pos = k[0]
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                (v + 1) / (len(self.pos_count) + self.pos_count[prev_pos])
-            )
-        for k, v in self.word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                (v + 1) / (len(self.pos_count) + self.pos_count[pos])
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    def smoothing(self, smoothing_type="ao"):
-        curr_tag_given_previous_tag = None
-        curr_word_given_tag = None
-        if (smoothing_type == "ao"):
-            curr_tag_given_previous_tag, curr_word_given_tag = self.ao_smoothing()
+    def smoothing(self, smoothing_func, *args):
+        curr_tag_given_previous_tag, curr_word_given_tag = smoothing_func(*args)
         return curr_tag_given_previous_tag, curr_word_given_tag
 
     def compute_emission_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
-            self.smoothing(smoothing_type="ao")
+            self.smoothing(ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair)
         )
+
+    def compute_viterbi(self, sentence):
+        raise NotImplementedError
 
 
 def tag_sentence(test_file, model_file, out_file):
