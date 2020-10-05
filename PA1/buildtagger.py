@@ -16,6 +16,7 @@ def train_model(train_file, model_file):
         for line in f.readlines():
             # Should we ignore the punctuations or account for them as well?
             prev_pos = '<s>'
+            pos_count['<s>'] += 1
             for term_pos_pairs in line.split():
                 term_pos_pairs = term_pos_pairs.split('/')
                 pos = term_pos_pairs[-1]
@@ -29,6 +30,8 @@ def train_model(train_file, model_file):
 
                 prev_pos = pos
         pos_bigrams[(prev_pos, '</s>')] += 1
+        pos_count['</s>'] += 1
+
     with open(model_file, 'wb') as f:
         pickle.dump({
             'pos_bigrams': dict(pos_bigrams),
