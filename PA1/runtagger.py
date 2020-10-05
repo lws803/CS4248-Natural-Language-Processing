@@ -35,11 +35,11 @@ class HiddenMarkovModel:
         return curr_tag_given_previous_tag, curr_word_given_tag
 
     @staticmethod
-    def witten_bell_smoothing(cls):
+    def witten_bell_smoothing():
         raise NotImplementedError
 
     @staticmethod
-    def kneser_ney_smoothing(cls):
+    def kneser_ney_smoothing():
         raise NotImplementedError
 
     def smoothing(self, smoothing_func, *args):
