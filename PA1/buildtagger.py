@@ -1,10 +1,9 @@
 # python3.5 buildtagger.py <train_file_absolute_path> <model_file_absolute_path>
 
-import os
-import math
 import sys
 import datetime
 from collections import defaultdict
+import pickle
 
 
 def train_model(train_file, model_file):
@@ -30,6 +29,18 @@ def train_model(train_file, model_file):
 
                 prev_pos = pos
         pos_bigrams[(prev_pos, '</s>')] += 1
+    with open(model_file, 'wb') as f:
+        pickle.dump({
+            'pos_bigrams': dict(pos_bigrams),
+            'word_pos_pair': dict(word_pos_pair),
+            'pos_count': dict(pos_count),
+            'word_count': dict(word_count)
+        }, f)
+
+    # Read test
+    # with open(model_file, 'rb') as f:
+    #     data = pickle.load(f)
+    #     import pdb; pdb.set_trace()
     print('Finished...')
 
 
