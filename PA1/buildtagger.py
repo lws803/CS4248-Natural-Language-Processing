@@ -11,6 +11,7 @@ def train_model(train_file, model_file):
     pos_bigrams = defaultdict(int)
     word_pos_pair = defaultdict(int)
     pos_count = defaultdict(int)
+    word_count = defaultdict(int)
 
     with open(train_file) as f:
         for line in f.readlines():
@@ -25,6 +26,7 @@ def train_model(train_file, model_file):
                 pos_bigrams[(prev_pos, pos)] += 1
                 pos_count[pos] += 1
                 word_pos_pair[(pos, term)] += 1
+                word_count[term] += 1
 
                 prev_pos = pos
         pos_bigrams[(prev_pos, '</s>')] += 1
