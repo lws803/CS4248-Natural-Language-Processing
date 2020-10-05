@@ -48,7 +48,10 @@ class HiddenMarkovModel:
 
     def compute_emission_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
-            self.smoothing(HiddenMarkovModel.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair)
+            self.smoothing(
+                HiddenMarkovModel.ao_smoothing, self.pos_count,
+                self.pos_bigrams, self.word_pos_pair
+            )
         )
 
     def compute_viterbi(self, sentence):
