@@ -7,30 +7,6 @@ import datetime
 import pickle
 
 
-def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
-    curr_tag_given_previous_tag = {}
-    curr_word_given_tag = {}
-    for k, v in pos_bigrams.items():
-        prev_pos = k[0]
-        curr_tag_given_previous_tag[(k[1], k[0])] = (
-            (v + 1) / (len(pos_count) + pos_count[prev_pos])
-        )
-    for k, v in word_pos_pair.items():
-        pos = k[0]
-        curr_word_given_tag[(k[1], k[0])] = (
-            (v + 1) / (len(pos_count) + pos_count[pos])
-        )
-    return curr_tag_given_previous_tag, curr_word_given_tag
-
-
-def witten_bell_smoothing():
-    raise NotImplementedError
-
-
-def kneser_ney_smoothing():
-    raise NotImplementedError
-
-
 class HiddenMarkovModel:
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
@@ -42,16 +18,41 @@ class HiddenMarkovModel:
 
         self.compute_emission_probabilities()
 
+    @staticmethod
+    def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
+        curr_tag_given_previous_tag = {}
+        curr_word_given_tag = {}
+        for k, v in pos_bigrams.items():
+            prev_pos = k[0]
+            curr_tag_given_previous_tag[(k[1], k[0])] = (
+                (v + 1) / (len(pos_count) + pos_count[prev_pos])
+            )
+        for k, v in word_pos_pair.items():
+            pos = k[0]
+            curr_word_given_tag[(k[1], k[0])] = (
+                (v + 1) / (len(pos_count) + pos_count[pos])
+            )
+        return curr_tag_given_previous_tag, curr_word_given_tag
+
+    @staticmethod
+    def witten_bell_smoothing(cls):
+        raise NotImplementedError
+
+    @staticmethod
+    def kneser_ney_smoothing(cls):
+        raise NotImplementedError
+
     def smoothing(self, smoothing_func, *args):
         curr_tag_given_previous_tag, curr_word_given_tag = smoothing_func(*args)
         return curr_tag_given_previous_tag, curr_word_given_tag
 
     def compute_emission_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
-            self.smoothing(ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair)
+            self.smoothing(HiddenMarkovModel.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair)
         )
 
     def compute_viterbi(self, sentence):
+        # TODO: Depending on which smoothing algo was used, we adjust accordingly
         raise NotImplementedError
 
 
@@ -60,6 +61,7 @@ def tag_sentence(test_file, model_file, out_file):
     with open(model_file, 'rb') as f:
         model = pickle.load(f)
     hmm = HiddenMarkovModel(model)
+    import pdb; pdb.set_trace()
     # write your code here. You can add functions as well.
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them
