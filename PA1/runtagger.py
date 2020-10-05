@@ -4,9 +4,14 @@ import os
 import math
 import sys
 import datetime
+import pickle
 
 
 def tag_sentence(test_file, model_file, out_file):
+    data = None
+    with open(model_file, 'rb') as f:
+        data = pickle.load(f)
+    import pdb; pdb.set_trace()
     # write your code here. You can add functions as well.
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them

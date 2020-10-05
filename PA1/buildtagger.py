@@ -37,10 +37,6 @@ def train_model(train_file, model_file):
             'word_count': dict(word_count)
         }, f)
 
-    # Read test
-    # with open(model_file, 'rb') as f:
-    #     data = pickle.load(f)
-    #     import pdb; pdb.set_trace()
     print('Finished...')
 
 
