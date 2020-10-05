@@ -8,7 +8,11 @@ import datetime
 
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
+    # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
+    # and evaluate between them
+    # TODO: Use log probabilities to avoid underflow errors with floats
     print('Finished...')
+
 
 if __name__ == "__main__":
     # make no changes here
