@@ -4,10 +4,25 @@ import os
 import math
 import sys
 import datetime
+from collections import defaultdict
 
 
 def train_model(train_file, model_file):
-    # write your code here. You can add functions as well.
+    pos_bigrams = defaultdict(int)
+    word_pos_pair = defaultdict(int)
+    with open(train_file) as f:
+        for line in f.readlines():
+            # Should we ignore the punctuations or account for them as well?
+            prev_pos = '<s>'
+            for term_pos_pairs in line.split():
+                term_pos_pairs = term_pos_pairs.split('/')
+                pos = term_pos_pairs[-1]
+                term_pos_pairs.pop()
+                term = '/'.join(term_pos_pairs)
+                pos_bigrams[(prev_pos, pos)] += 1
+                prev_pos = pos
+                word_pos_pair[(pos, term)] += 1
+        pos_bigrams[(prev_pos, '</s>')] += 1
     print('Finished...')
 
 if __name__ == "__main__":
