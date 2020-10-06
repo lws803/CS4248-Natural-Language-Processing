@@ -137,7 +137,7 @@ def tag_sentence(test_file, model_file, out_file):
     hmm = HiddenMarkovModel(model)
 
     sentence = (
-        'And it was stupid .'
+        'The charge on loans to brokers on stock exchange collateral .'
     )
     tags = hmm.compute_viterbi(sentence)
     output_str = ''
