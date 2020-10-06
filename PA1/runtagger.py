@@ -1,6 +1,5 @@
 # python3.5 runtagger.py <test_file_absolute_path> <model_file_absolute_path> <output_file_absolute_path>
 
-import os
 import math
 import sys
 import datetime
@@ -64,7 +63,7 @@ class HiddenMarkovModel:
         tags.remove(start_tag)
         tags.remove(end_tag)
         terms = sentence.split()
-
+        # TODO: Double check the math again for each of these
         # Init
         for tag in tags:
             # AO smoothing
@@ -133,20 +132,33 @@ def tag_sentence(test_file, model_file, out_file):
         model = pickle.load(f)
     hmm = HiddenMarkovModel(model)
 
-    sentence = input('input sentence: ')
-    tags = hmm.compute_viterbi(sentence)
-    output_str = ''
-    for i in range(0, len(tags)):
-        output_str += '{}/{} '.format(sentence.split()[i], tags[i])
-    print(output_str)
+    # sentence = input('input sentence: ')
+    # tags = hmm.compute_viterbi(sentence)
+    # output_str = ''
+    # for i in range(0, len(tags)):
+    #     output_str += '{}/{} '.format(sentence.split()[i], tags[i])
+    # print(output_str)
 
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them
 
     with open(test_file) as f:
-        for line in f.readlines():
-            # TODO: Generate the hidden markov model here
-            pass
+        with open(out_file, 'w+') as f_output:
+            lines = f.readlines()
+            counter = 0
+            for line in lines:
+                # print((counter / len(lines)) * 100)
+                tags = hmm.compute_viterbi(line)
+                output_str = ''
+                for i in range(0, len(tags)):
+                    output_str += '{}/{}'.format(line.split()[i], tags[i])
+                    if i < len(tags) - 1:
+                        output_str += ' '
+                    else:
+                        output_str += '\n'
+                f_output.write(output_str)
+                counter += 1
+
     print('Finished...')
 
 
