@@ -16,7 +16,7 @@ class HiddenMarkovModel:
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
-        self.compute_emission_probabilities()
+        self.compute_transition_probabilities()
 
     @staticmethod
     def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
@@ -46,7 +46,7 @@ class HiddenMarkovModel:
         curr_tag_given_previous_tag, curr_word_given_tag = smoothing_func(*args)
         return curr_tag_given_previous_tag, curr_word_given_tag
 
-    def compute_emission_probabilities(self):
+    def compute_transition_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
             self.smoothing(
                 HiddenMarkovModel.ao_smoothing, self.pos_count,
@@ -56,15 +56,95 @@ class HiddenMarkovModel:
 
     def compute_viterbi(self, sentence):
         # TODO: Depending on which smoothing algo was used, we adjust accordingly
-        raise NotImplementedError
+        viterbi_table = {}
+        backpointer_table = {}
+        tags = list(self.pos_count.keys())
+        tags.remove('<s>')
+        tags.remove('</s>')
+        terms = sentence.split()
+        start_tag = '<s>'
+        end_tag = '</s>'
 
+        # Init
+        for tag in tags:
+            # AO smoothing
+            viterbi_table[(tag, terms[0])] = (
+                math.log(
+                    self.curr_tag_given_previous_tag[(tag, start_tag)]
+                    if (tag, start_tag) in self.curr_tag_given_previous_tag
+                    else 1 / (len(self.pos_count) + self.pos_count[start_tag])
+                ) + math.log(
+                    self.curr_word_given_tag[(terms[0], tag)]
+                    if (terms[0], tag) in self.curr_word_given_tag
+                    else 1 / (len(self.pos_count) + self.pos_count[tag])
+                )
+            )
+
+        for i in range(1, len(terms)):
+            for curr_tag in tags:
+                max_connecting_tag = None
+                max_score = -math.inf
+                for connecting_tag in tags:
+                    score = viterbi_table[(connecting_tag, terms[i - 1])] + math.log(
+                        self.curr_tag_given_previous_tag[(curr_tag, connecting_tag)]
+                        if (curr_tag, connecting_tag) in self.curr_tag_given_previous_tag
+                        else 1 / (len(self.pos_count) + self.pos_count[connecting_tag])
+                    ) + math.log(
+                        self.curr_word_given_tag[(terms[i], curr_tag)]
+                        if (terms[i], curr_tag) in self.curr_word_given_tag
+                        else 1 / (len(self.pos_count) + self.pos_count[curr_tag])
+                    )
+                    if score > max_score:
+                        max_score = score
+                        max_connecting_tag = connecting_tag
+                backpointer_table[(curr_tag, terms[i])] = max_connecting_tag
+                viterbi_table[(curr_tag, terms[i])] = max_score
+
+        max_score = -math.inf
+        max_connecting_tag = None
+        for connecting_tag in tags:
+            score = viterbi_table[(connecting_tag, terms[-1])] + math.log(
+                self.curr_tag_given_previous_tag[(end_tag, connecting_tag)]
+                if (end_tag, connecting_tag) in self.curr_tag_given_previous_tag
+                else 1 / (len(self.pos_count) + self.pos_count[connecting_tag])
+            ) + math.log(
+                self.curr_word_given_tag[(terms[i], end_tag)]
+                if (terms[i], end_tag) in self.curr_word_given_tag
+                else 1 / (len(self.pos_count) + self.pos_count[end_tag])
+            )
+            if score > max_score:
+                max_score = score
+                max_connecting_tag = connecting_tag
+        viterbi_table[(end_tag, terms[-1])] = max_score
+        backpointer_table[(end_tag, terms[-1])] = max_connecting_tag
+
+        # Backtrack
+        reversed_terms_list = terms[::-1]
+        reversed_terms_list.pop()
+        output_tags = [backpointer_table[(end_tag, reversed_terms_list[0])]]
+        prev_tag = backpointer_table[(end_tag, reversed_terms_list[0])]
+        for term in reversed_terms_list:
+            output_tags.append(backpointer_table[(prev_tag, term)])
+            prev_tag = backpointer_table[(prev_tag, term)]
+        output_tags.reverse()
+
+        return output_tags
 
 def tag_sentence(test_file, model_file, out_file):
     model = None
     with open(model_file, 'rb') as f:
         model = pickle.load(f)
     hmm = HiddenMarkovModel(model)
-    import pdb; pdb.set_trace()
+
+    sentence = (
+        'And it was stupid .'
+    )
+    tags = hmm.compute_viterbi(sentence)
+    output_str = ''
+    for i in range(0, len(tags)):
+        output_str += '{}/{} '.format(sentence.split()[i], tags[i])
+    print(output_str)
+
     # write your code here. You can add functions as well.
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them
