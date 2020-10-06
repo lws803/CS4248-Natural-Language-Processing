@@ -58,12 +58,12 @@ class HiddenMarkovModel:
         # TODO: Depending on which smoothing algo was used, we adjust accordingly
         viterbi_table = {}
         backpointer_table = {}
-        tags = list(self.pos_count.keys())
-        tags.remove('<s>')
-        tags.remove('</s>')
-        terms = sentence.split()
         start_tag = '<s>'
         end_tag = '</s>'
+        tags = list(self.pos_count.keys())
+        tags.remove(start_tag)
+        tags.remove(end_tag)
+        terms = sentence.split()
 
         # Init
         for tag in tags:
@@ -144,11 +144,8 @@ def tag_sentence(test_file, model_file, out_file):
     for i in range(0, len(tags)):
         output_str += '{}/{} '.format(sentence.split()[i], tags[i])
     print(output_str)
-
-    # write your code here. You can add functions as well.
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them
-    # TODO: Use log probabilities to avoid underflow errors with floats
 
     with open(test_file) as f:
         for line in f.readlines():
