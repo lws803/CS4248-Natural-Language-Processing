@@ -80,43 +80,40 @@ class HiddenMarkovModel:
                 )
             )
 
+        def calculate_score(prev_tag, curr_tag, prev_term, curr_term):
+            score = viterbi_table[(prev_tag, prev_term)] + math.log(
+                self.curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+                if (curr_tag, prev_tag) in self.curr_tag_given_previous_tag
+                else 1 / (len(self.pos_count) + self.pos_count[prev_tag])
+            ) + math.log(
+                self.curr_word_given_tag[(curr_term, curr_tag)]
+                if (curr_term, curr_tag) in self.curr_word_given_tag
+                else 1 / (len(self.pos_count) + self.pos_count[curr_tag])
+            )
+            return score
+
         for i in range(1, len(terms)):
             for curr_tag in tags:
-                max_connecting_tag = None
-                max_score = -math.inf
+                backpointer_table[(curr_tag, terms[i])] = None
+                viterbi_table[(curr_tag, terms[i])] = -math.inf
                 for connecting_tag in tags:
-                    score = viterbi_table[(connecting_tag, terms[i - 1])] + math.log(
-                        self.curr_tag_given_previous_tag[(curr_tag, connecting_tag)]
-                        if (curr_tag, connecting_tag) in self.curr_tag_given_previous_tag
-                        else 1 / (len(self.pos_count) + self.pos_count[connecting_tag])
-                    ) + math.log(
-                        self.curr_word_given_tag[(terms[i], curr_tag)]
-                        if (terms[i], curr_tag) in self.curr_word_given_tag
-                        else 1 / (len(self.pos_count) + self.pos_count[curr_tag])
-                    )
-                    if score > max_score:
-                        max_score = score
-                        max_connecting_tag = connecting_tag
-                backpointer_table[(curr_tag, terms[i])] = max_connecting_tag
-                viterbi_table[(curr_tag, terms[i])] = max_score
+                    score = calculate_score(connecting_tag, curr_tag, terms[i - 1], terms[i])
+                    if score > viterbi_table[(curr_tag, terms[i])]:
+                        viterbi_table[(curr_tag, terms[i])] = score
+                        backpointer_table[(curr_tag, terms[i])] = connecting_tag
 
-        max_score = -math.inf
-        max_connecting_tag = None
+        # End of sentence
+        viterbi_table[(end_tag, terms[-1])] = -math.inf
+        backpointer_table[(end_tag, terms[-1])] = None
         for connecting_tag in tags:
             score = viterbi_table[(connecting_tag, terms[-1])] + math.log(
                 self.curr_tag_given_previous_tag[(end_tag, connecting_tag)]
                 if (end_tag, connecting_tag) in self.curr_tag_given_previous_tag
                 else 1 / (len(self.pos_count) + self.pos_count[connecting_tag])
-            ) + math.log(
-                self.curr_word_given_tag[(terms[i], end_tag)]
-                if (terms[i], end_tag) in self.curr_word_given_tag
-                else 1 / (len(self.pos_count) + self.pos_count[end_tag])
             )
-            if score > max_score:
-                max_score = score
-                max_connecting_tag = connecting_tag
-        viterbi_table[(end_tag, terms[-1])] = max_score
-        backpointer_table[(end_tag, terms[-1])] = max_connecting_tag
+            if score > viterbi_table[(end_tag, terms[-1])]:
+                viterbi_table[(end_tag, terms[-1])] = score
+                backpointer_table[(end_tag, terms[-1])] = connecting_tag
 
         # Backtrack
         reversed_terms_list = terms[::-1]
@@ -136,14 +133,13 @@ def tag_sentence(test_file, model_file, out_file):
         model = pickle.load(f)
     hmm = HiddenMarkovModel(model)
 
-    sentence = (
-        'The charge on loans to brokers on stock exchange collateral .'
-    )
+    sentence = input('input sentence: ')
     tags = hmm.compute_viterbi(sentence)
     output_str = ''
     for i in range(0, len(tags)):
         output_str += '{}/{} '.format(sentence.split()[i], tags[i])
     print(output_str)
+
     # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
     # and evaluate between them
 
