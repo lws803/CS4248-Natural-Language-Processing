@@ -7,6 +7,8 @@ import pickle
 
 
 class HiddenMarkovModel:
+    ao_discount = 0.5  # accuracy seems to increase as the discount decreases
+
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
         self.word_pos_pair = model['word_pos_pair']
@@ -24,12 +26,12 @@ class HiddenMarkovModel:
         for k, v in pos_bigrams.items():
             prev_pos = k[0]
             curr_tag_given_previous_tag[(k[1], k[0])] = (
-                (v + 1) / (len(pos_count) + pos_count[prev_pos])
+                (v + HiddenMarkovModel.ao_discount) / (len(pos_count) + pos_count[prev_pos])
             )
         for k, v in word_pos_pair.items():
             pos = k[0]
             curr_word_given_tag[(k[1], k[0])] = (
-                (v + 1) / (len(pos_count) + pos_count[pos])
+                (v + HiddenMarkovModel.ao_discount) / (len(pos_count) + pos_count[pos])
             )
         return curr_tag_given_previous_tag, curr_word_given_tag
 
@@ -71,11 +73,11 @@ class HiddenMarkovModel:
                 math.log(
                     self.curr_tag_given_previous_tag[(tag, start_tag)]
                     if (tag, start_tag) in self.curr_tag_given_previous_tag
-                    else 1 / (len(self.pos_count) + self.pos_count[start_tag])
+                    else self.ao_discount / (len(self.pos_count) + self.pos_count[start_tag])
                 ) + math.log(
                     self.curr_word_given_tag[(terms[0], tag)]
                     if (terms[0], tag) in self.curr_word_given_tag
-                    else 1 / (len(self.pos_count) + self.pos_count[tag])
+                    else self.ao_discount / (len(self.pos_count) + self.pos_count[tag])
                 )
             )
 
@@ -83,11 +85,11 @@ class HiddenMarkovModel:
             score = viterbi_table[(prev_tag, prev_term)] + math.log(
                 self.curr_tag_given_previous_tag[(curr_tag, prev_tag)]
                 if (curr_tag, prev_tag) in self.curr_tag_given_previous_tag
-                else 1 / (len(self.pos_count) + self.pos_count[prev_tag])
+                else self.ao_discount / (len(self.pos_count) + self.pos_count[prev_tag])
             ) + math.log(
                 self.curr_word_given_tag[(curr_term, curr_tag)]
                 if (curr_term, curr_tag) in self.curr_word_given_tag
-                else 1 / (len(self.pos_count) + self.pos_count[curr_tag])
+                else self.ao_discount / (len(self.pos_count) + self.pos_count[curr_tag])
             )
             return score
 
@@ -108,7 +110,7 @@ class HiddenMarkovModel:
             score = viterbi_table[(connecting_tag, terms[-1])] + math.log(
                 self.curr_tag_given_previous_tag[(end_tag, connecting_tag)]
                 if (end_tag, connecting_tag) in self.curr_tag_given_previous_tag
-                else 1 / (len(self.pos_count) + self.pos_count[connecting_tag])
+                else self.ao_discount / (len(self.pos_count) + self.pos_count[connecting_tag])
             )
             if score > viterbi_table[(end_tag, terms[-1])]:
                 viterbi_table[(end_tag, terms[-1])] = score
