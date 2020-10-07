@@ -6,18 +6,8 @@ import datetime
 import pickle
 
 
-class HiddenMarkovModel:
-    ao_discount = 0.1  # accuracy seems to increase as the discount decreases
-
-    def __init__(self, model):
-        self.pos_bigrams = model['pos_bigrams']
-        self.word_pos_pair = model['word_pos_pair']
-        self.pos_count = model['pos_count']
-        self.word_count = model['word_count']
-        self.curr_tag_given_previous_tag = None
-        self.curr_word_given_tag = None
-
-        self.compute_transition_probabilities()
+class AOSmoothing:
+    ao_discount = 0.001
 
     @staticmethod
     def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
@@ -26,18 +16,104 @@ class HiddenMarkovModel:
         for k, v in pos_bigrams.items():
             prev_pos = k[0]
             curr_tag_given_previous_tag[(k[1], k[0])] = (
-                (v + HiddenMarkovModel.ao_discount) / (len(pos_count) + pos_count[prev_pos])
+                (v + AOSmoothing.ao_discount) / (len(pos_count) + pos_count[prev_pos])
             )
         for k, v in word_pos_pair.items():
             pos = k[0]
             curr_word_given_tag[(k[1], k[0])] = (
-                (v + HiddenMarkovModel.ao_discount) / (len(pos_count) + pos_count[pos])
+                (v + AOSmoothing.ao_discount) / (len(pos_count) + pos_count[pos])
             )
         return curr_tag_given_previous_tag, curr_word_given_tag
 
     @staticmethod
-    def witten_bell_smoothing():
-        raise NotImplementedError
+    def compute_score(
+        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
+        curr_word_given_tag, pos_count, last_state=False
+    ):
+        if last_state:
+            score = prev_state_score + math.log(
+                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+                if (curr_tag, prev_tag) in curr_tag_given_previous_tag
+                else AOSmoothing.ao_discount / (len(pos_count) + pos_count[prev_tag])
+            )
+            return score
+
+        score = prev_state_score + math.log(
+            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+            if (curr_tag, prev_tag) in curr_tag_given_previous_tag
+            else AOSmoothing.ao_discount / (len(pos_count) + pos_count[prev_tag])
+        ) + math.log(
+            curr_word_given_tag[(curr_term, curr_tag)]
+            if (curr_term, curr_tag) in curr_word_given_tag
+            else AOSmoothing.ao_discount / (len(pos_count) + pos_count[curr_tag])
+        )
+        return score
+
+class WittenBellSmoothing:
+    @staticmethod
+    def witten_bell_smoothing(
+        pos_count, pos_bigrams, word_pos_pair, pos_bigram_types, word_pos_pair_types
+    ):
+        curr_tag_given_previous_tag = {}
+        curr_word_given_tag = {}
+        for k, v in pos_bigrams.items():
+            curr_tag_given_previous_tag[(k[1], k[0])] = (
+                v / (pos_count[k[0]] + len(pos_bigram_types[k[0]]))
+            )
+
+        for k, v in word_pos_pair.items():
+            pos = k[0]
+            curr_word_given_tag[(k[1], k[0])] = (
+                v / (pos_count[pos] + len(word_pos_pair_types[pos]))
+            )
+        return curr_tag_given_previous_tag, curr_word_given_tag
+
+    @staticmethod
+    def compute_score(
+        prev_state_score, prev_tag, curr_tag, curr_term,
+        curr_tag_given_previous_tag, curr_word_given_tag, pos_count,
+        pos_bigram_types, word_pos_pair_types, word_count,
+        last_state=False
+    ):
+        score = 0
+        T_prev_tag = len(pos_bigram_types[prev_tag])
+        pr_curr_tag_prev_tag = (
+            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+            if (curr_tag, prev_tag) in curr_tag_given_previous_tag
+            else T_prev_tag / (
+                (len(pos_count) - T_prev_tag) * (pos_count[prev_tag] + T_prev_tag))
+        )
+        if not last_state:
+            T_seen_word_types_given_tag = len(word_pos_pair_types[curr_tag])
+            pr_curr_term_curr_tag = (
+                curr_word_given_tag[(curr_term, curr_tag)]
+                if (curr_term, curr_tag) in curr_word_given_tag
+                else T_seen_word_types_given_tag / (
+                    (len(word_count) - T_seen_word_types_given_tag) * (
+                        pos_count[curr_tag] + T_seen_word_types_given_tag
+                    )
+                )
+            )
+            score = (
+                prev_state_score + math.log(pr_curr_tag_prev_tag) + math.log(pr_curr_term_curr_tag)
+            )
+        else:
+            score = prev_state_score + math.log(pr_curr_tag_prev_tag)
+        return score
+
+
+class HiddenMarkovModel:
+    def __init__(self, model):
+        self.pos_bigrams = model['pos_bigrams']
+        self.word_pos_pair = model['word_pos_pair']
+        self.pos_count = model['pos_count']
+        self.word_count = model['word_count']
+        self.pos_bigram_types = model['pos_bigram_types']
+        self.word_pos_pair_types = model['word_pos_pair_types']
+        self.curr_tag_given_previous_tag = None
+        self.curr_word_given_tag = None
+
+        self.compute_transition_probabilities()
 
     @staticmethod
     def kneser_ney_smoothing():
@@ -49,14 +125,17 @@ class HiddenMarkovModel:
 
     def compute_transition_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
+            # self.smoothing(
+            #     WittenBellSmoothing.witten_bell_smoothing, self.pos_count,
+            #     self.pos_bigrams, self.word_pos_pair,
+            #     self.pos_bigram_types, self.word_pos_pair_types
+            # )
             self.smoothing(
-                HiddenMarkovModel.ao_smoothing, self.pos_count,
-                self.pos_bigrams, self.word_pos_pair
+                AOSmoothing.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
             )
         )
 
     def compute_viterbi(self, sentence):
-        # TODO: Depending on which smoothing algo was used, we adjust accordingly
         viterbi_table = {}
         backpointer_table = {}
         start_tag = '<s>'
@@ -65,40 +144,40 @@ class HiddenMarkovModel:
         tags.remove(start_tag)
         tags.remove(end_tag)
         terms = sentence.split()
-        # TODO: Double check the math again for each of these
         # Init
         for tag in tags:
-            # AO smoothing
             viterbi_table[(tag, terms[0])] = (
-                math.log(
-                    self.curr_tag_given_previous_tag[(tag, start_tag)]
-                    if (tag, start_tag) in self.curr_tag_given_previous_tag
-                    else self.ao_discount / (len(self.pos_count) + self.pos_count[start_tag])
-                ) + math.log(
-                    self.curr_word_given_tag[(terms[0], tag)]
-                    if (terms[0], tag) in self.curr_word_given_tag
-                    else self.ao_discount / (len(self.pos_count) + self.pos_count[tag])
+                # WittenBellSmoothing.compute_score(
+                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
+                #     self.curr_word_given_tag, self.pos_count, self.pos_bigram_types,
+                #     self.word_pos_pair_types, self.word_count
+                # )
+                AOSmoothing.compute_score(
+                    0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
+                    self.curr_word_given_tag, self.pos_count
                 )
             )
-
-        def calculate_score(prev_tag, curr_tag, prev_term, curr_term):
-            score = viterbi_table[(prev_tag, prev_term)] + math.log(
-                self.curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-                if (curr_tag, prev_tag) in self.curr_tag_given_previous_tag
-                else self.ao_discount / (len(self.pos_count) + self.pos_count[prev_tag])
-            ) + math.log(
-                self.curr_word_given_tag[(curr_term, curr_tag)]
-                if (curr_term, curr_tag) in self.curr_word_given_tag
-                else self.ao_discount / (len(self.pos_count) + self.pos_count[curr_tag])
-            )
-            return score
 
         for i in range(1, len(terms)):
             for curr_tag in tags:
                 backpointer_table[(curr_tag, terms[i])] = None
                 viterbi_table[(curr_tag, terms[i])] = -math.inf
                 for connecting_tag in tags:
-                    score = calculate_score(connecting_tag, curr_tag, terms[i - 1], terms[i])
+                    curr_term = terms[i]
+                    prev_tag = connecting_tag
+                    prev_state_score = viterbi_table[(connecting_tag, terms[i - 1])]
+                    # score = WittenBellSmoothing.compute_score(
+                    #     prev_state_score=prev_state_score, prev_tag=prev_tag,
+                    #     curr_tag=curr_tag, curr_term=curr_term,
+                    #     curr_tag_given_previous_tag=self.curr_tag_given_previous_tag,
+                    #     curr_word_given_tag=self.curr_word_given_tag, pos_count=self.pos_count,
+                    #     pos_bigram_types=self.pos_bigram_types,
+                    #     word_pos_pair_types=self.word_pos_pair_types, word_count=self.word_count
+                    # )
+                    score = AOSmoothing.compute_score(
+                        prev_state_score, prev_tag, curr_tag, curr_term,
+                        self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count
+                    )
                     if score > viterbi_table[(curr_tag, terms[i])]:
                         viterbi_table[(curr_tag, terms[i])] = score
                         backpointer_table[(curr_tag, terms[i])] = connecting_tag
@@ -107,10 +186,15 @@ class HiddenMarkovModel:
         viterbi_table[(end_tag, terms[-1])] = -math.inf
         backpointer_table[(end_tag, terms[-1])] = None
         for connecting_tag in tags:
-            score = viterbi_table[(connecting_tag, terms[-1])] + math.log(
-                self.curr_tag_given_previous_tag[(end_tag, connecting_tag)]
-                if (end_tag, connecting_tag) in self.curr_tag_given_previous_tag
-                else self.ao_discount / (len(self.pos_count) + self.pos_count[connecting_tag])
+            # score = WittenBellSmoothing.compute_score(
+            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
+            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag,
+            #     self.pos_count, self.pos_bigram_types, self.word_pos_pair_types,
+            #     self.word_count, True
+            # )
+            score = AOSmoothing.compute_score(
+                viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
+                self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count, True
             )
             if score > viterbi_table[(end_tag, terms[-1])]:
                 viterbi_table[(end_tag, terms[-1])] = score
@@ -149,7 +233,7 @@ def tag_sentence(test_file, model_file, out_file):
             lines = f.readlines()
             counter = 0
             for line in lines:
-                # print((counter / len(lines)) * 100)
+                print((counter / len(lines)) * 100)
                 tags = hmm.compute_viterbi(line)
                 output_str = ''
                 for i in range(0, len(tags)):
