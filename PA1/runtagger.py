@@ -28,7 +28,7 @@ class AOSmoothing:
     @staticmethod
     def compute_score(
         prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
-        curr_word_given_tag, pos_count, last_state=False
+        curr_word_given_tag, pos_count, word_count, last_state=False
     ):
         if last_state:
             score = prev_state_score + math.log(
@@ -38,15 +38,26 @@ class AOSmoothing:
             )
             return score
 
+        pr_term_given_tag = 0
+        if (curr_term not in word_count):
+            curr_term = '<UNK>'
+            pr_term_given_tag = (
+                curr_word_given_tag[(curr_term, curr_tag)]
+                if (curr_term, curr_tag) in curr_word_given_tag
+                else AOSmoothing.ao_discount / (len(pos_count) + pos_count[curr_tag])
+            )
+        else:
+            pr_term_given_tag = (
+                curr_word_given_tag[(curr_term, curr_tag)]
+                if (curr_term, curr_tag) in curr_word_given_tag
+                else AOSmoothing.ao_discount / (len(pos_count) + pos_count[curr_tag])
+            )
+
         score = prev_state_score + math.log(
             curr_tag_given_previous_tag[(curr_tag, prev_tag)]
             if (curr_tag, prev_tag) in curr_tag_given_previous_tag
             else AOSmoothing.ao_discount / (len(pos_count) + pos_count[prev_tag])
-        ) + math.log(
-            curr_word_given_tag[(curr_term, curr_tag)]
-            if (curr_term, curr_tag) in curr_word_given_tag
-            else AOSmoothing.ao_discount / (len(pos_count) + pos_count[curr_tag])
-        )
+        ) + math.log(pr_term_given_tag)
         return score
 
 class WittenBellSmoothing:
@@ -154,7 +165,7 @@ class HiddenMarkovModel:
                 # )
                 AOSmoothing.compute_score(
                     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                    self.curr_word_given_tag, self.pos_count
+                    self.curr_word_given_tag, self.pos_count, self.word_count
                 )
             )
 
@@ -176,7 +187,8 @@ class HiddenMarkovModel:
                     # )
                     score = AOSmoothing.compute_score(
                         prev_state_score, prev_tag, curr_tag, curr_term,
-                        self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count
+                        self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
+                        self.word_count
                     )
                     if score > viterbi_table[(curr_tag, terms[i])]:
                         viterbi_table[(curr_tag, terms[i])] = score
@@ -194,7 +206,8 @@ class HiddenMarkovModel:
             # )
             score = AOSmoothing.compute_score(
                 viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-                self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count, True
+                self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
+                self.word_count, True
             )
             if score > viterbi_table[(end_tag, terms[-1])]:
                 viterbi_table[(end_tag, terms[-1])] = score
