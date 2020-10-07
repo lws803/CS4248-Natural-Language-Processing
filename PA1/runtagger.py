@@ -36,6 +36,7 @@ class NoSmoothing:
 
         if (curr_term not in word_count):
             curr_term = '<UNK>'
+            # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
 
         score = prev_state_score + math.log(
             curr_tag_given_previous_tag[(curr_tag, prev_tag)]
@@ -127,6 +128,9 @@ class WittenBellSmoothing:
         pos_bigram_types, word_pos_pair_types, word_count,
         last_state=False
     ):
+        if (curr_term not in word_count):
+            curr_term = '<UNK>'
+
         score = 0
         T_prev_tag = pos_bigram_types[prev_tag]
         pr_curr_tag_prev_tag = (
