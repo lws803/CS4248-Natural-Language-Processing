@@ -6,6 +6,47 @@ import datetime
 import pickle
 
 
+class NoSmoothing:
+    def no_smoothing(pos_count, pos_bigrams, word_pos_pair):
+        curr_tag_given_previous_tag = {}
+        curr_word_given_tag = {}
+        for k, v in pos_bigrams.items():
+            prev_pos = k[0]
+            curr_tag_given_previous_tag[(k[1], k[0])] = (
+                v / pos_count[prev_pos]
+            )
+        for k, v in word_pos_pair.items():
+            pos = k[0]
+            curr_word_given_tag[(k[1], k[0])] = (
+                v / pos_count[pos]
+            )
+        return curr_tag_given_previous_tag, curr_word_given_tag
+
+    @staticmethod
+    def compute_score(
+        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
+        curr_word_given_tag, pos_count, word_count, last_state=False
+    ):
+        if last_state:
+            score = prev_state_score + math.log(
+                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+                if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
+            )
+            return score
+
+        if (curr_term not in word_count):
+            curr_term = '<UNK>'
+
+        score = prev_state_score + math.log(
+            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
+            if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
+        ) + math.log(
+            curr_word_given_tag[(curr_term, curr_tag)]
+            if (curr_term, curr_tag) in curr_word_given_tag else 1e-300
+        )
+        return score
+
+
 class AOSmoothing:
     ao_discount = 0.001
 
@@ -141,8 +182,11 @@ class HiddenMarkovModel:
             #     self.pos_bigrams, self.word_pos_pair,
             #     self.pos_bigram_types, self.word_pos_pair_types
             # )
+            # self.smoothing(
+            #     AOSmoothing.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
+            # )
             self.smoothing(
-                AOSmoothing.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
+                NoSmoothing.no_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
             )
         )
 
@@ -163,7 +207,11 @@ class HiddenMarkovModel:
                 #     self.curr_word_given_tag, self.pos_count, self.pos_bigram_types,
                 #     self.word_pos_pair_types, self.word_count
                 # )
-                AOSmoothing.compute_score(
+                # AOSmoothing.compute_score(
+                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
+                #     self.curr_word_given_tag, self.pos_count, self.word_count
+                # )
+                NoSmoothing.compute_score(
                     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
                     self.curr_word_given_tag, self.pos_count, self.word_count
                 )
@@ -185,7 +233,12 @@ class HiddenMarkovModel:
                     #     pos_bigram_types=self.pos_bigram_types,
                     #     word_pos_pair_types=self.word_pos_pair_types, word_count=self.word_count
                     # )
-                    score = AOSmoothing.compute_score(
+                    # score = AOSmoothing.compute_score(
+                    #     prev_state_score, prev_tag, curr_tag, curr_term,
+                    #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
+                    #     self.word_count
+                    # )
+                    score = NoSmoothing.compute_score(
                         prev_state_score, prev_tag, curr_tag, curr_term,
                         self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
                         self.word_count
@@ -204,7 +257,12 @@ class HiddenMarkovModel:
             #     self.pos_count, self.pos_bigram_types, self.word_pos_pair_types,
             #     self.word_count, True
             # )
-            score = AOSmoothing.compute_score(
+            # score = AOSmoothing.compute_score(
+            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
+            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
+            #     self.word_count, True
+            # )
+            score = NoSmoothing.compute_score(
                 viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
                 self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
                 self.word_count, True
