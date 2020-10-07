@@ -7,7 +7,7 @@ import pickle
 
 
 class HiddenMarkovModel:
-    ao_discount = 0.5  # accuracy seems to increase as the discount decreases
+    ao_discount = 0.1  # accuracy seems to increase as the discount decreases
 
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
