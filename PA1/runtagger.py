@@ -95,8 +95,6 @@ class WittenBellSmoothing:
 
 
 class HiddenMarkovModel:
-    ao_discount = 0.001  # accuracy seems to increase as the discount decreases
-
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
         self.word_pos_pair = model['word_pos_pair']
@@ -124,6 +122,9 @@ class HiddenMarkovModel:
                 self.pos_bigrams, self.word_pos_pair,
                 self.pos_bigram_types, self.word_pos_pair_types
             )
+            # self.smoothing(
+            #     AOSmoothing.ao_smoothing(self.pos_count, self.pos_bigrams, self.word_pos_pair)
+            # )
         )
 
     def compute_viterbi(self, sentence):
@@ -143,6 +144,10 @@ class HiddenMarkovModel:
                     self.curr_word_given_tag, self.pos_count, self.pos_bigram_types,
                     self.word_pos_pair_types, self.word_count
                 )
+                # AOSmoothing.compute_score(
+                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
+                #     self.curr_word_given_tag, self.pos_count
+                # )
             )
 
         for i in range(1, len(terms)):
@@ -153,8 +158,7 @@ class HiddenMarkovModel:
                     curr_term = terms[i]
                     prev_tag = connecting_tag
                     prev_state_score = viterbi_table[(connecting_tag, terms[i - 1])]
-                    score = 0
-                    WittenBellSmoothing.compute_score(
+                    score = WittenBellSmoothing.compute_score(
                         prev_state_score=prev_state_score, prev_tag=prev_tag,
                         curr_tag=curr_tag, curr_term=curr_term,
                         curr_tag_given_previous_tag=self.curr_tag_given_previous_tag,
