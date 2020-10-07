@@ -43,8 +43,8 @@ def train_model(train_file, model_file):
             'word_pos_pair': dict(word_pos_pair),
             'pos_count': dict(pos_count),
             'word_count': dict(word_count),
-            'pos_bigram_types': dict(pos_bigram_types),
-            'word_pos_pair_types': dict(word_pos_pair_types)
+            'pos_bigram_types': {kv[0]: len(kv[1]) for kv in pos_bigram_types.items()},
+            'word_pos_pair_types': {kv[0]: len(kv[1]) for kv in word_pos_pair_types.items()}
         }, f)
 
     print('Finished...')

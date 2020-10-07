@@ -58,13 +58,13 @@ class WittenBellSmoothing:
         curr_word_given_tag = {}
         for k, v in pos_bigrams.items():
             curr_tag_given_previous_tag[(k[1], k[0])] = (
-                v / (pos_count[k[0]] + len(pos_bigram_types[k[0]]))
+                v / (pos_count[k[0]] + pos_bigram_types[k[0]])
             )
 
         for k, v in word_pos_pair.items():
             pos = k[0]
             curr_word_given_tag[(k[1], k[0])] = (
-                v / (pos_count[pos] + len(word_pos_pair_types[pos]))
+                v / (pos_count[pos] + word_pos_pair_types[pos])
             )
         return curr_tag_given_previous_tag, curr_word_given_tag
 
@@ -76,7 +76,7 @@ class WittenBellSmoothing:
         last_state=False
     ):
         score = 0
-        T_prev_tag = len(pos_bigram_types[prev_tag])
+        T_prev_tag = pos_bigram_types[prev_tag]
         pr_curr_tag_prev_tag = (
             curr_tag_given_previous_tag[(curr_tag, prev_tag)]
             if (curr_tag, prev_tag) in curr_tag_given_previous_tag
@@ -84,7 +84,7 @@ class WittenBellSmoothing:
                 (len(pos_count) - T_prev_tag) * (pos_count[prev_tag] + T_prev_tag))
         )
         if not last_state:
-            T_seen_word_types_given_tag = len(word_pos_pair_types[curr_tag])
+            T_seen_word_types_given_tag = word_pos_pair_types[curr_tag]
             pr_curr_term_curr_tag = (
                 curr_word_given_tag[(curr_term, curr_tag)]
                 if (curr_term, curr_tag) in curr_word_given_tag
@@ -224,9 +224,6 @@ def tag_sentence(test_file, model_file, out_file):
     # for i in range(0, len(tags)):
     #     output_str += '{}/{} '.format(sentence.split()[i], tags[i])
     # print(output_str)
-
-    # TODO: Use add one smoothing or witten bell smoothing and kneser ney smoothing
-    # and evaluate between them
 
     with open(test_file) as f:
         with open(out_file, 'w+') as f_output:
