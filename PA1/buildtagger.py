@@ -11,6 +11,8 @@ def train_model(train_file, model_file):
     word_pos_pair = defaultdict(int)
     pos_count = defaultdict(int)
     word_count = defaultdict(int)
+    pos_bigram_types = defaultdict(set)
+    word_pos_pair_types = defaultdict(set)
 
     with open(train_file) as f:
         for line in f.readlines():
@@ -27,9 +29,12 @@ def train_model(train_file, model_file):
                 pos_count[pos] += 1
                 word_pos_pair[(pos, term)] += 1
                 word_count[term] += 1
+                pos_bigram_types[prev_pos].add(pos)
+                word_pos_pair_types[pos].add(term)
 
                 prev_pos = pos
         pos_bigrams[(prev_pos, '</s>')] += 1
+        pos_bigram_types[prev_pos].add('</s>')
         pos_count['</s>'] += 1
 
     with open(model_file, 'wb') as f:
@@ -37,7 +42,9 @@ def train_model(train_file, model_file):
             'pos_bigrams': dict(pos_bigrams),
             'word_pos_pair': dict(word_pos_pair),
             'pos_count': dict(pos_count),
-            'word_count': dict(word_count)
+            'word_count': dict(word_count),
+            'pos_bigram_types': dict(pos_bigram_types),
+            'word_pos_pair_types': dict(word_pos_pair_types)
         }, f)
 
     print('Finished...')

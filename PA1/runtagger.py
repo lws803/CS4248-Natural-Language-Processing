@@ -7,13 +7,15 @@ import pickle
 
 
 class HiddenMarkovModel:
-    ao_discount = 0.1  # accuracy seems to increase as the discount decreases
+    ao_discount = 0.001  # accuracy seems to increase as the discount decreases
 
     def __init__(self, model):
         self.pos_bigrams = model['pos_bigrams']
         self.word_pos_pair = model['word_pos_pair']
         self.pos_count = model['pos_count']
         self.word_count = model['word_count']
+        self.pos_bigram_types = model['pos_bigram_types']
+        self.word_pos_pair_types = model['word_pos_pair_types']
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
@@ -36,8 +38,22 @@ class HiddenMarkovModel:
         return curr_tag_given_previous_tag, curr_word_given_tag
 
     @staticmethod
-    def witten_bell_smoothing():
-        raise NotImplementedError
+    def witten_bell_smoothing(
+        pos_count, pos_bigrams, word_pos_pair, pos_bigram_types, word_pos_pair_types
+    ):
+        curr_tag_given_previous_tag = {}
+        curr_word_given_tag = {}
+        for k, v in pos_bigrams.items():
+            curr_tag_given_previous_tag[(k[1], k[0])] = (
+                v / (pos_count[k[0]] + len(pos_bigram_types[k[0]]))
+            )
+
+        for k, v in word_pos_pair.items():
+            pos = k[0]
+            curr_word_given_tag[(k[1], k[0])] = (
+                v / (pos_count[pos] + len(word_pos_pair_types[pos]))
+            )
+        return curr_tag_given_previous_tag, curr_word_given_tag
 
     @staticmethod
     def kneser_ney_smoothing():
@@ -50,8 +66,9 @@ class HiddenMarkovModel:
     def compute_transition_probabilities(self):
         self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
             self.smoothing(
-                HiddenMarkovModel.ao_smoothing, self.pos_count,
-                self.pos_bigrams, self.word_pos_pair
+                HiddenMarkovModel.witten_bell_smoothing, self.pos_count,
+                self.pos_bigrams, self.word_pos_pair,
+                self.pos_bigram_types, self.word_pos_pair_types
             )
         )
 
