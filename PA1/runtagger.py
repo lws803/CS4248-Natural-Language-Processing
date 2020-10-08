@@ -4,110 +4,8 @@ import math
 import sys
 import datetime
 import pickle
+import numpy as np
 
-
-class NoSmoothing:
-    def no_smoothing(pos_count, pos_bigrams, word_pos_pair):
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in pos_bigrams.items():
-            prev_pos = k[0]
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                v / pos_count[prev_pos]
-            )
-        for k, v in word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                v / pos_count[pos]
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    @staticmethod
-    def compute_score(
-        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
-        curr_word_given_tag, pos_count, word_count, last_state=False
-    ):
-        if last_state:
-            score = prev_state_score + math.log(
-                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-                if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
-            )
-            return score
-
-        if (curr_term not in word_count):
-            curr_term = '<UNK>'
-            # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
-
-        score = prev_state_score + math.log(
-            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-            if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
-        ) + math.log(
-            curr_word_given_tag[(curr_term, curr_tag)]
-            if (curr_term, curr_tag) in curr_word_given_tag else 1e-300
-        )
-        return score
-
-
-class AOSmoothing:
-    # FIXME: Figure out what's wrong with add one, it should improve this technically
-    ao_discount = 1
-
-    @staticmethod
-    def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
-        # TODO: Might be good to calc these in the build tagger
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in pos_bigrams.items():
-            prev_pos = k[0]
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                (v + AOSmoothing.ao_discount) / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_pos]
-                )
-            )
-        for k, v in word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                (v + AOSmoothing.ao_discount) / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[pos]
-                )
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    @staticmethod
-    def compute_score(
-        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
-        curr_word_given_tag, pos_count, word_count, last_state=False
-    ):
-        # TODO: This as well so we don't have to recalculate it each time
-        if last_state:
-            score = prev_state_score + math.log(
-                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-                if (curr_tag, prev_tag) in curr_tag_given_previous_tag
-                else AOSmoothing.ao_discount / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_tag]
-                )
-            )
-            return score
-
-        if (curr_term not in word_count):
-            curr_term = '<UNK>'
-
-        pr_term_given_tag = (
-            curr_word_given_tag[(curr_term, curr_tag)]
-            if (curr_term, curr_tag) in curr_word_given_tag
-            else AOSmoothing.ao_discount / (
-                len(pos_count) * AOSmoothing.ao_discount + pos_count[curr_tag]
-            )
-        )
-
-        score = prev_state_score + math.log(
-            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-            if (curr_tag, prev_tag) in curr_tag_given_previous_tag
-            else AOSmoothing.ao_discount / (
-                len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_tag]
-            )
-        ) + math.log(pr_term_given_tag)
-        return score
 
 class WittenBellSmoothing:
     @staticmethod
@@ -177,14 +75,15 @@ class HiddenMarkovModel:
         self.pos_index = model['pos_index']
         self.transition_probabilities = model['transition_probabilities']
         self.word_emission_probabilities = model['word_emission_probabilities']
-
+        self.pos_list = model['pos_list']
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
-    def compute_score(self, prev_state_score, prev_tag, curr_tag, curr_term, last_state=False):
+    def compute_score(
+        self, prev_state_score, prev_tag_index, curr_tag_index, curr_term,
+        last_state=False
+    ):
         # TODO: Find a way to skip if there is no viterbi path here
-        prev_tag_index = self.pos_index[prev_tag]
-        curr_tag_index = self.pos_index[curr_tag]
         if last_state:
             score = prev_state_score + math.log(
                 self.transition_probabilities[prev_tag_index][curr_tag_index]
@@ -197,7 +96,6 @@ class HiddenMarkovModel:
             curr_term = '<UNK>'
             # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
         curr_word_index = self.word_index[curr_term]
-
         score = prev_state_score + math.log(
             self.transition_probabilities[prev_tag_index][curr_tag_index]
             if self.transition_probabilities[prev_tag_index][curr_tag_index] > 0 else
@@ -210,42 +108,44 @@ class HiddenMarkovModel:
         return score
 
     def compute_viterbi(self, sentence):
-        viterbi_table = {}
         backpointer_table = {}
         start_tag = '<s>'
         end_tag = '</s>'
-        tags = list(self.pos_count.keys())
-        tags.remove(start_tag)
-        tags.remove(end_tag)
+        # tags = list(self.pos_count.keys())
+        # tags.remove(start_tag)
+        # tags.remove(end_tag)
+        # FIXME: Do we need to remove these two tags
         terms = sentence.split()
+        viterbi_table = np.full(
+            (len(self.pos_index), len(terms)), -math.inf, dtype=float
+        )
         # Init
-        for tag in tags:
-            viterbi_table[(tag, terms[0])] = (
-                self.compute_score(0, start_tag, tag, terms[0])
+        for i in range(0, len(self.pos_index)):
+            viterbi_table[i][0] = (
+                self.compute_score(0, self.pos_index[start_tag], i, terms[0])
             )
         # TODO: Find out how to optimize this with the numpy code.
         for i in range(1, len(terms)):
-            for curr_tag in tags:
-                backpointer_table[(curr_tag, terms[i])] = None
-                viterbi_table[(curr_tag, terms[i])] = -math.inf
-                for connecting_tag in tags:
-                    curr_term = terms[i]
-                    prev_tag = connecting_tag
-                    prev_state_score = viterbi_table[(prev_tag, terms[i - 1])]
-                    score = self.compute_score(prev_state_score, prev_tag, curr_tag, curr_term)
-                    if score > viterbi_table[(curr_tag, terms[i])]:
-                        viterbi_table[(curr_tag, terms[i])] = score
-                        backpointer_table[(curr_tag, terms[i])] = connecting_tag
+            for j in range(0, len(self.pos_index)):
+                backpointer_table[(self.pos_list[j], terms[i])] = None
+                for k in range(0, len(self.pos_index)):
+                    prev_state_score = viterbi_table[k][i - 1]
+                    score = self.compute_score(prev_state_score, k, j, terms[i])
+                    if score > viterbi_table[j][i]:
+                        viterbi_table[j][i] = score
+                        backpointer_table[(self.pos_list[j], terms[i])] = self.pos_list[k]
 
         # End of sentence
-        viterbi_table[(end_tag, terms[-1])] = -math.inf
         backpointer_table[(end_tag, terms[-1])] = None
-        for connecting_tag in tags:
-            prev_state_score = viterbi_table[(connecting_tag, terms[-1])]
-            score = self.compute_score(prev_state_score, connecting_tag, end_tag, terms[-1], True)
-            if score > viterbi_table[(end_tag, terms[-1])]:
-                viterbi_table[(end_tag, terms[-1])] = score
-                backpointer_table[(end_tag, terms[-1])] = connecting_tag
+        end_tag_index = self.pos_index[end_tag]
+        for i in range(0, len(self.pos_index)):
+            prev_state_score = viterbi_table[i][len(terms) - 1]
+            score = self.compute_score(
+                prev_state_score, i, end_tag_index, terms[-1], True
+            )
+            if score > viterbi_table[end_tag_index][len(terms) - 1]:
+                viterbi_table[end_tag_index][len(terms) - 1] = score
+                backpointer_table[(end_tag, terms[-1])] = self.pos_list[i]
 
         # Backtrack
         reversed_terms_list = terms[::-1]

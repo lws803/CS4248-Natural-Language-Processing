@@ -79,9 +79,11 @@ def train_model(train_file, model_file):
         pos_count['</s>'] += 1
         pos_index = {}
         word_index = {}
+        pos_list = [None] * len(pos_count.keys())
 
         for index, val in enumerate(pos_count.keys()):
             pos_index[val] = index
+            pos_list[index] = val
         for index, val in enumerate(output_word_count.keys()):
             word_index[val] = index
 
@@ -99,6 +101,7 @@ def train_model(train_file, model_file):
             'word_pos_pair_types': {kv[0]: len(kv[1]) for kv in word_pos_pair_types.items()},
             'word_index': word_index,
             'pos_index': pos_index,
+            'pos_list': pos_list,
             'transition_probabilities': transition_probabilities,
             'word_emission_probabilities': word_emission_probabilities,
         }, f)
