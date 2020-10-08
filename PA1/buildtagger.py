@@ -11,7 +11,6 @@ import re
 UNK = '<UNK>'
 unk_words_threshold = 1
 
-# TODO: Do an add one smoothing. We need non zero transition paths
 def no_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
     word_index, capital_pos, suffix_pos
@@ -31,6 +30,44 @@ def no_smoothing(
         curr_pos_index = pos_index[k[0]]
         curr_word_index = word_index[k[1]]
         word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
+
+    for k, v in suffix_pos.items():
+        curr_pos = pos_index[k[1]]
+        suffix_code = k[0]
+        suffix_emission_probabilities[curr_pos][suffix_code] = v / pos_count[k[1]]
+    for k, v in capital_pos.items():
+        curr_pos = pos_index[k[1]]
+        capital_code = k[0]
+        capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
+
+    return (
+        transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    )
+
+
+def ao_smoothing(
+    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
+    word_index, capital_pos, suffix_pos
+):
+    word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 7))
+    capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
+    transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
+
+    # TODO: Iterate through entire array and smooth out the transition matrix
+    for k, v in pos_bigrams.items():
+        prev_pos = k[0]
+        prev_pos_index = pos_index[k[0]]
+        curr_pos_index = pos_index[k[1]]
+        transition_probabilities[prev_pos_index][curr_pos_index] = v / pos_count[prev_pos]
+    for k, v in word_pos_pair.items():
+        pos = k[0]
+        curr_pos_index = pos_index[k[0]]
+        curr_word_index = word_index[k[1]]
+        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
+
+    # TODO: Do the same for this one
     for k, v in suffix_pos.items():
         curr_pos = pos_index[k[1]]
         suffix_code = k[0]
