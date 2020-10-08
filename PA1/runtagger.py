@@ -81,6 +81,7 @@ class HiddenMarkovModel:
             (r'.*s$', 4),
             (r'.*al$', 5),
             (r'.*ive$', 6),
+            (r'[-]', 7),
             (r'.*', 0)
         ]
         for rule in rules:

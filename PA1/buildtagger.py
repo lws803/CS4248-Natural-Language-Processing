@@ -16,7 +16,7 @@ def no_smoothing(
     word_index, capital_pos, suffix_pos, pos_list, word_list
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
-    suffix_emission_probabilities = np.zeros((len(pos_index), 7))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 8))
     capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
     transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
 
@@ -97,6 +97,7 @@ def simple_rule_based_tagger(term):
         (r'.*s$', 4),
         (r'.*al$', 5),
         (r'.*ive$', 6),
+        (r'[-]', 7),
         (r'.*', 0)
     ]
     for rule in rules:
