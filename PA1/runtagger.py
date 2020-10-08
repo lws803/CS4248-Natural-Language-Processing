@@ -4,110 +4,8 @@ import math
 import sys
 import datetime
 import pickle
-
-
-class NoSmoothing:
-    def no_smoothing(pos_count, pos_bigrams, word_pos_pair):
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in pos_bigrams.items():
-            prev_pos = k[0]
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                v / pos_count[prev_pos]
-            )
-        for k, v in word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                v / pos_count[pos]
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    @staticmethod
-    def compute_score(
-        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
-        curr_word_given_tag, pos_count, word_count, last_state=False
-    ):
-        if last_state:
-            score = prev_state_score + math.log(
-                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-                if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
-            )
-            return score
-
-        if (curr_term not in word_count):
-            curr_term = '<UNK>'
-            # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
-
-        score = prev_state_score + math.log(
-            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-            if (curr_tag, prev_tag) in curr_tag_given_previous_tag else 1e-300
-        ) + math.log(
-            curr_word_given_tag[(curr_term, curr_tag)]
-            if (curr_term, curr_tag) in curr_word_given_tag else 1e-300
-        )
-        return score
-
-
-class AOSmoothing:
-    # FIXME: Figure out what's wrong with add one, it should improve this technically
-    ao_discount = 1
-
-    @staticmethod
-    def ao_smoothing(pos_count, pos_bigrams, word_pos_pair):
-        # TODO: Might be good to calc these in the build tagger
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in pos_bigrams.items():
-            prev_pos = k[0]
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                (v + AOSmoothing.ao_discount) / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_pos]
-                )
-            )
-        for k, v in word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                (v + AOSmoothing.ao_discount) / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[pos]
-                )
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    @staticmethod
-    def compute_score(
-        prev_state_score, prev_tag, curr_tag, curr_term, curr_tag_given_previous_tag,
-        curr_word_given_tag, pos_count, word_count, last_state=False
-    ):
-        # TODO: This as well so we don't have to recalculate it each time
-        if last_state:
-            score = prev_state_score + math.log(
-                curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-                if (curr_tag, prev_tag) in curr_tag_given_previous_tag
-                else AOSmoothing.ao_discount / (
-                    len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_tag]
-                )
-            )
-            return score
-
-        if (curr_term not in word_count):
-            curr_term = '<UNK>'
-
-        pr_term_given_tag = (
-            curr_word_given_tag[(curr_term, curr_tag)]
-            if (curr_term, curr_tag) in curr_word_given_tag
-            else AOSmoothing.ao_discount / (
-                len(pos_count) * AOSmoothing.ao_discount + pos_count[curr_tag]
-            )
-        )
-
-        score = prev_state_score + math.log(
-            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-            if (curr_tag, prev_tag) in curr_tag_given_previous_tag
-            else AOSmoothing.ao_discount / (
-                len(pos_count) * AOSmoothing.ao_discount + pos_count[prev_tag]
-            )
-        ) + math.log(pr_term_given_tag)
-        return score
+import numpy as np
+import re
 
 class WittenBellSmoothing:
     @staticmethod
@@ -167,132 +65,94 @@ class WittenBellSmoothing:
 
 class HiddenMarkovModel:
     def __init__(self, model):
-        self.pos_bigrams = model['pos_bigrams']
-        self.word_pos_pair = model['word_pos_pair']
-        self.pos_count = model['pos_count']
-        self.word_count = model['word_count']
-        self.pos_bigram_types = model['pos_bigram_types']
-        self.word_pos_pair_types = model['word_pos_pair_types']
-        self.curr_tag_given_previous_tag = None
-        self.curr_word_given_tag = None
+        self.word_index = model['word_index']
+        self.pos_index = model['pos_index']
+        self.transition_probabilities = model['transition_probabilities']
+        self.word_emission_probabilities = model['word_emission_probabilities']
+        self.suffix_emission_probabilities = model['suffix_emission_probabilities']
+        self.capitalization_emission_probabilities = model['capitalization_emission_probabilities']
+        self.pos_list = model['pos_list']
 
-        self.compute_transition_probabilities()
+    def simple_rule_based_tagger(self, term):
+        rules = [
+            (r'.*ing$', 1),
+            (r'.*ed$', 2),
+            (r'.*ion$', 3),
+            (r'.*s$', 4),
+            (r'.*al$', 5),
+            (r'.*ive$', 6),
+            (r'[-]', 7),
+            (r'.*', 0)
+        ]
+        for rule in rules:
+            if re.match(rule[0], term):
+                return rule[1]
 
-    @staticmethod
-    def kneser_ney_smoothing():
-        raise NotImplementedError
-
-    def smoothing(self, smoothing_func, *args):
-        curr_tag_given_previous_tag, curr_word_given_tag = smoothing_func(*args)
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    def compute_transition_probabilities(self):
-        self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
-            # self.smoothing(
-            #     WittenBellSmoothing.witten_bell_smoothing, self.pos_count,
-            #     self.pos_bigrams, self.word_pos_pair,
-            #     self.pos_bigram_types, self.word_pos_pair_types
-            # )
-            self.smoothing(
-                AOSmoothing.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
-            )
-            # self.smoothing(
-            #     NoSmoothing.no_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
-            # )
-        )
+    def capitalization_detector(self, term):
+        if (term.isupper()):
+            return 1
+        if (term[0].isupper()):
+            return 2
+        return 0
 
     def compute_viterbi(self, sentence):
-        viterbi_table = {}
-        backpointer_table = {}
         start_tag = '<s>'
         end_tag = '</s>'
-        tags = list(self.pos_count.keys())
-        tags.remove(start_tag)
-        tags.remove(end_tag)
         terms = sentence.split()
+        viterbi_table = np.zeros((len(self.pos_index), len(terms)), dtype=float)
+        backtrack = np.zeros((len(self.pos_index), len(terms)), dtype='int') - 1
+
         # Init
-        for tag in tags:
-            viterbi_table[(tag, terms[0])] = (
-                # WittenBellSmoothing.compute_score(
-                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                #     self.curr_word_given_tag, self.pos_count, self.pos_bigram_types,
-                #     self.word_pos_pair_types, self.word_count
-                # )
-                AOSmoothing.compute_score(
-                    0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                    self.curr_word_given_tag, self.pos_count, self.word_count
-                )
-                # NoSmoothing.compute_score(
-                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                #     self.curr_word_given_tag, self.pos_count, self.word_count
-                # )
+        pr_word_emission_mtx = None
+        if terms[0] in self.word_index:
+            pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index[terms[0]]]
+        else:
+            pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index['<UNK>']]
+            suffix = self.simple_rule_based_tagger(terms[0])
+            capital = self.capitalization_detector(terms[0])
+            pr_word_emission_mtx = np.multiply(
+                pr_word_emission_mtx, self.suffix_emission_probabilities[:, suffix]
             )
+            pr_word_emission_mtx = np.multiply(
+                pr_word_emission_mtx, self.capitalization_emission_probabilities[:, capital]
+            )
+
+        viterbi_table[:, 0] = np.multiply(
+            pr_word_emission_mtx, self.transition_probabilities[self.pos_index[start_tag], :])
 
         for i in range(1, len(terms)):
-            for curr_tag in tags:
-                backpointer_table[(curr_tag, terms[i])] = None
-                viterbi_table[(curr_tag, terms[i])] = -math.inf
-                for connecting_tag in tags:
-                    curr_term = terms[i]
-                    prev_tag = connecting_tag
-                    prev_state_score = viterbi_table[(prev_tag, terms[i - 1])]
-                    # score = WittenBellSmoothing.compute_score(
-                    #     prev_state_score=prev_state_score, prev_tag=prev_tag,
-                    #     curr_tag=curr_tag, curr_term=curr_term,
-                    #     curr_tag_given_previous_tag=self.curr_tag_given_previous_tag,
-                    #     curr_word_given_tag=self.curr_word_given_tag, pos_count=self.pos_count,
-                    #     pos_bigram_types=self.pos_bigram_types,
-                    #     word_pos_pair_types=self.word_pos_pair_types, word_count=self.word_count
-                    # )
-                    score = AOSmoothing.compute_score(
-                        prev_state_score, prev_tag, curr_tag, curr_term,
-                        self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                        self.word_count
-                    )
-                    # score = NoSmoothing.compute_score(
-                    #     prev_state_score, prev_tag, curr_tag, curr_term,
-                    #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                    #     self.word_count
-                    # )
-                    if score > viterbi_table[(curr_tag, terms[i])]:
-                        viterbi_table[(curr_tag, terms[i])] = score
-                        backpointer_table[(curr_tag, terms[i])] = connecting_tag
+            for j in range(0, len(self.pos_index)):
+                states_give_prev_pos = np.multiply(
+                    viterbi_table[:, i - 1], self.transition_probabilities[:, j]
+                )
+                pr_word_emission = 0
+                if terms[i] in self.word_index:
+                    word_index = self.word_index[terms[i]]
+                    pr_word_emission = self.word_emission_probabilities[j, word_index]
+                else:
+                    pr_word_emission = self.word_emission_probabilities[j, self.word_index['<UNK>']]
+                    suffix = self.simple_rule_based_tagger(terms[i])
+                    capital = self.capitalization_detector(terms[i])
+                    pr_word_emission *= self.suffix_emission_probabilities[j, suffix]
+                    pr_word_emission *= self.capitalization_emission_probabilities[j, capital]
 
-        # End of sentence
-        viterbi_table[(end_tag, terms[-1])] = -math.inf
-        backpointer_table[(end_tag, terms[-1])] = None
-        for connecting_tag in tags:
-            # score = WittenBellSmoothing.compute_score(
-            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag,
-            #     self.pos_count, self.pos_bigram_types, self.word_pos_pair_types,
-            #     self.word_count, True
-            # )
-            score = AOSmoothing.compute_score(
-                viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-                self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                self.word_count, True
-            )
-            # score = NoSmoothing.compute_score(
-            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-            #     self.word_count, True
-            # )
-            if score > viterbi_table[(end_tag, terms[-1])]:
-                viterbi_table[(end_tag, terms[-1])] = score
-                backpointer_table[(end_tag, terms[-1])] = connecting_tag
+                max_prev_pos = np.argmax(states_give_prev_pos)
+                backtrack[j, i] = max_prev_pos
+                viterbi_table[j, i] = (
+                    states_give_prev_pos[max_prev_pos] * pr_word_emission
+                )
 
-        # Backtrack
-        reversed_terms_list = terms[::-1]
-        reversed_terms_list.pop()
-        output_tags = [backpointer_table[(end_tag, reversed_terms_list[0])]]
-        prev_tag = backpointer_table[(end_tag, reversed_terms_list[0])]
-        for term in reversed_terms_list:
-            output_tags.append(backpointer_table[(prev_tag, term)])
-            prev_tag = backpointer_table[(prev_tag, term)]
-        output_tags.reverse()
+        output = "\n"
+        last_tag_index = np.argmax(np.multiply(
+            viterbi_table[:, -1], self.transition_probabilities[:, self.pos_index[end_tag]])
+        )
+        output = terms[-1] + '/' + self.pos_list[last_tag_index] + output
 
-        return output_tags
+        for i in range(0, len(terms) - 1):
+            last_tag_index = backtrack[last_tag_index, len(terms) - 2 - i + 1]
+            output = terms[len(terms) - 2 - i] + '/' + self.pos_list[last_tag_index] + ' ' + output
+
+        return output
 
 def tag_sentence(test_file, model_file, out_file):
     model = None
@@ -313,14 +173,7 @@ def tag_sentence(test_file, model_file, out_file):
             counter = 0
             for line in lines:
                 print((counter / len(lines)) * 100)
-                tags = hmm.compute_viterbi(line)
-                output_str = ''
-                for i in range(0, len(tags)):
-                    output_str += '{}/{}'.format(line.split()[i], tags[i])
-                    if i < len(tags) - 1:
-                        output_str += ' '
-                    else:
-                        output_str += '\n'
+                output_str = hmm.compute_viterbi(line)
                 f_output.write(output_str)
                 counter += 1
 
