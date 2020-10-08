@@ -173,33 +173,41 @@ class HiddenMarkovModel:
         self.word_count = model['word_count']
         self.pos_bigram_types = model['pos_bigram_types']
         self.word_pos_pair_types = model['word_pos_pair_types']
+        self.word_index = model['word_index']
+        self.pos_index = model['pos_index']
+        self.transition_probabilities = model['transition_probabilities']
+        self.word_emission_probabilities = model['word_emission_probabilities']
+
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
-        self.compute_transition_probabilities()
-
-    @staticmethod
-    def kneser_ney_smoothing():
-        raise NotImplementedError
-
-    def smoothing(self, smoothing_func, *args):
-        curr_tag_given_previous_tag, curr_word_given_tag = smoothing_func(*args)
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    def compute_transition_probabilities(self):
-        self.curr_tag_given_previous_tag, self.curr_word_given_tag = (
-            # self.smoothing(
-            #     WittenBellSmoothing.witten_bell_smoothing, self.pos_count,
-            #     self.pos_bigrams, self.word_pos_pair,
-            #     self.pos_bigram_types, self.word_pos_pair_types
-            # )
-            self.smoothing(
-                AOSmoothing.ao_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
+    def compute_score(self, prev_state_score, prev_tag, curr_tag, curr_term, last_state=False):
+        # TODO: Find a way to skip if there is no viterbi path here
+        prev_tag_index = self.pos_index[prev_tag]
+        curr_tag_index = self.pos_index[curr_tag]
+        if last_state:
+            score = prev_state_score + math.log(
+                self.transition_probabilities[prev_tag_index][curr_tag_index]
+                if self.transition_probabilities[prev_tag_index][curr_tag_index] > 0 else
+                1e-300
             )
-            # self.smoothing(
-            #     NoSmoothing.no_smoothing, self.pos_count, self.pos_bigrams, self.word_pos_pair
-            # )
+            return score
+
+        if (curr_term not in self.word_index):
+            curr_term = '<UNK>'
+            # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
+        curr_word_index = self.word_index[curr_term]
+
+        score = prev_state_score + math.log(
+            self.transition_probabilities[prev_tag_index][curr_tag_index]
+            if self.transition_probabilities[prev_tag_index][curr_tag_index] > 0 else
+            1e-300
+        ) + math.log(
+            self.word_emission_probabilities[curr_tag_index][curr_word_index]
+            if self.word_emission_probabilities[curr_tag_index][curr_word_index] > 0 else
+            1e-300
         )
+        return score
 
     def compute_viterbi(self, sentence):
         viterbi_table = {}
@@ -213,21 +221,9 @@ class HiddenMarkovModel:
         # Init
         for tag in tags:
             viterbi_table[(tag, terms[0])] = (
-                # WittenBellSmoothing.compute_score(
-                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                #     self.curr_word_given_tag, self.pos_count, self.pos_bigram_types,
-                #     self.word_pos_pair_types, self.word_count
-                # )
-                AOSmoothing.compute_score(
-                    0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                    self.curr_word_given_tag, self.pos_count, self.word_count
-                )
-                # NoSmoothing.compute_score(
-                #     0, start_tag, tag, terms[0], self.curr_tag_given_previous_tag,
-                #     self.curr_word_given_tag, self.pos_count, self.word_count
-                # )
+                self.compute_score(0, start_tag, tag, terms[0])
             )
-
+        # TODO: Find out how to optimize this with the numpy code.
         for i in range(1, len(terms)):
             for curr_tag in tags:
                 backpointer_table[(curr_tag, terms[i])] = None
@@ -236,24 +232,7 @@ class HiddenMarkovModel:
                     curr_term = terms[i]
                     prev_tag = connecting_tag
                     prev_state_score = viterbi_table[(prev_tag, terms[i - 1])]
-                    # score = WittenBellSmoothing.compute_score(
-                    #     prev_state_score=prev_state_score, prev_tag=prev_tag,
-                    #     curr_tag=curr_tag, curr_term=curr_term,
-                    #     curr_tag_given_previous_tag=self.curr_tag_given_previous_tag,
-                    #     curr_word_given_tag=self.curr_word_given_tag, pos_count=self.pos_count,
-                    #     pos_bigram_types=self.pos_bigram_types,
-                    #     word_pos_pair_types=self.word_pos_pair_types, word_count=self.word_count
-                    # )
-                    score = AOSmoothing.compute_score(
-                        prev_state_score, prev_tag, curr_tag, curr_term,
-                        self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                        self.word_count
-                    )
-                    # score = NoSmoothing.compute_score(
-                    #     prev_state_score, prev_tag, curr_tag, curr_term,
-                    #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                    #     self.word_count
-                    # )
+                    score = self.compute_score(prev_state_score, prev_tag, curr_tag, curr_term)
                     if score > viterbi_table[(curr_tag, terms[i])]:
                         viterbi_table[(curr_tag, terms[i])] = score
                         backpointer_table[(curr_tag, terms[i])] = connecting_tag
@@ -262,22 +241,8 @@ class HiddenMarkovModel:
         viterbi_table[(end_tag, terms[-1])] = -math.inf
         backpointer_table[(end_tag, terms[-1])] = None
         for connecting_tag in tags:
-            # score = WittenBellSmoothing.compute_score(
-            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag,
-            #     self.pos_count, self.pos_bigram_types, self.word_pos_pair_types,
-            #     self.word_count, True
-            # )
-            score = AOSmoothing.compute_score(
-                viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-                self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-                self.word_count, True
-            )
-            # score = NoSmoothing.compute_score(
-            #     viterbi_table[(connecting_tag, terms[-1])], connecting_tag, end_tag, terms[-1],
-            #     self.curr_tag_given_previous_tag, self.curr_word_given_tag, self.pos_count,
-            #     self.word_count, True
-            # )
+            prev_state_score = viterbi_table[(connecting_tag, terms[-1])]
+            score = self.compute_score(prev_state_score, connecting_tag, end_tag, terms[-1], True)
             if score > viterbi_table[(end_tag, terms[-1])]:
                 viterbi_table[(end_tag, terms[-1])] = score
                 backpointer_table[(end_tag, terms[-1])] = connecting_tag
