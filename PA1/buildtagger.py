@@ -8,10 +8,10 @@ import numpy as np
 
 
 UNK = '<UNK>'
-unk_words_threshold = 0
+unk_words_threshold = 1
 
 
-def ao_smoothing(
+def no_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index, word_index
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
@@ -21,31 +21,13 @@ def ao_smoothing(
         prev_pos = k[0]
         prev_pos_index = pos_index[k[0]]
         curr_pos_index = pos_index[k[1]]
-        transition_probabilities[prev_pos_index][curr_pos_index] = (
-            (v + 1) / (
-                len(pos_count) * 1 + pos_count[prev_pos]
-            )
-        )
+        transition_probabilities[prev_pos_index][curr_pos_index] = v / pos_count[prev_pos]
     for k, v in word_pos_pair.items():
         pos = k[0]
         curr_pos_index = pos_index[k[0]]
         curr_word_index = word_index[k[1]]
-        word_emission_probabilities[curr_pos_index][curr_word_index] = (
-            (v + 1) / (
-                len(pos_count) * 1 + pos_count[pos]
-            )
-        )
+        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
 
-    # Acc for unk words
-    for pos in pos_count.keys():
-        curr_pos_index = pos_index[pos]
-        unknown_word_index = word_index[UNK]
-        word_emission_probabilities[curr_pos_index][unknown_word_index] = (
-            1 / (
-                len(pos_count) * 1 + pos_count[pos]
-            )
-        )
-    # TODO: If transition path is 0 then we shd be ignoring it in viterbi calculation
     return transition_probabilities, word_emission_probabilities
 
 
@@ -83,8 +65,8 @@ def train_model(train_file, model_file):
                 pos_count[pos] += 1
 
                 # Remove unk words for now
-                # if (word_count[term] <= unk_words_threshold):
-                #     term = UNK
+                if (word_count[term] <= unk_words_threshold):
+                    term = UNK
                 word_pos_pair[(pos, term)] += 1
                 output_word_count[term] += 1
                 word_pos_pair_types[pos].add(term)
@@ -96,14 +78,14 @@ def train_model(train_file, model_file):
         pos_bigram_types[prev_pos].add('</s>')
         pos_count['</s>'] += 1
         pos_index = {}
-        word_index = {UNK: len(output_word_count)}
+        word_index = {}
 
         for index, val in enumerate(pos_count.keys()):
             pos_index[val] = index
         for index, val in enumerate(output_word_count.keys()):
             word_index[val] = index
 
-        transition_probabilities, word_emission_probabilities = ao_smoothing(
+        transition_probabilities, word_emission_probabilities = no_smoothing(
             pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index
         )
 
