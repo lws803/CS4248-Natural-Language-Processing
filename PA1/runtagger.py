@@ -69,20 +69,30 @@ class HiddenMarkovModel:
         self.pos_index = model['pos_index']
         self.transition_probabilities = model['transition_probabilities']
         self.word_emission_probabilities = model['word_emission_probabilities']
+        self.suffix_emission_probabilities = model['suffix_emission_probabilities']
+        self.capitalization_emission_probabilities = model['capitalization_emission_probabilities']
         self.pos_list = model['pos_list']
 
     def simple_rule_based_tagger(self, term):
         rules = [
-            (r'.*ing$', 'VBG'),
-            (r'.*ed$', 'VBD'),
-            (r'.*es$', 'VB'),
-            (r'.*s$', 'NNS'),
-            (r'^-?[0-9]+(.[0-9]+)?$', 'CD'),
-            (r'.*', 'NN')
+            (r'.*ing$', 1),
+            (r'.*ed$', 2),
+            (r'.*ion$', 3),
+            (r'.*s$', 4),
+            (r'.*al$', 5),
+            (r'.*ive$', 6),
+            (r'.*', 0)
         ]
         for rule in rules:
             if re.match(rule[0], term):
                 return rule[1]
+
+    def capitalization_detector(self, term):
+        if (term.isupper()):
+            return 1
+        if (term[0].isupper()):
+            return 2
+        return 0
 
     def compute_viterbi(self, sentence):
         start_tag = '<s>'
@@ -97,6 +107,14 @@ class HiddenMarkovModel:
             pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index[terms[0]]]
         else:
             pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index['<UNK>']]
+            suffix = self.simple_rule_based_tagger(terms[0])
+            capital = self.capitalization_detector(terms[0])
+            pr_word_emission_mtx = np.multiply(
+                pr_word_emission_mtx, self.suffix_emission_probabilities[:, suffix]
+            )
+            pr_word_emission_mtx = np.multiply(
+                pr_word_emission_mtx, self.capitalization_emission_probabilities[:, capital]
+            )
 
         viterbi_table[:, 0] = np.multiply(
             pr_word_emission_mtx, self.transition_probabilities[self.pos_index[start_tag], :])
@@ -112,6 +130,10 @@ class HiddenMarkovModel:
                     pr_word_emission = self.word_emission_probabilities[j, word_index]
                 else:
                     pr_word_emission = self.word_emission_probabilities[j, self.word_index['<UNK>']]
+                    suffix = self.simple_rule_based_tagger(terms[i])
+                    capital = self.capitalization_detector(terms[i])
+                    pr_word_emission *= self.suffix_emission_probabilities[j, suffix]
+                    pr_word_emission *= self.capitalization_emission_probabilities[j, capital]
 
                 max_prev_pos = np.argmax(states_give_prev_pos)
                 backtrack[j, i] = max_prev_pos

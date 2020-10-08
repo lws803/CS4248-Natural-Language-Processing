@@ -5,6 +5,7 @@ import datetime
 from collections import defaultdict
 import pickle
 import numpy as np
+import re
 
 
 UNK = '<UNK>'
@@ -12,9 +13,12 @@ unk_words_threshold = 1
 
 # TODO: Do an add one smoothing. We need non zero transition paths
 def no_smoothing(
-    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index, word_index
+    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
+    word_index, capital_pos, suffix_pos
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 7))
+    capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
     transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
 
     for k, v in pos_bigrams.items():
@@ -27,8 +31,42 @@ def no_smoothing(
         curr_pos_index = pos_index[k[0]]
         curr_word_index = word_index[k[1]]
         word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
+    for k, v in suffix_pos.items():
+        curr_pos = pos_index[k[1]]
+        suffix_code = k[0]
+        suffix_emission_probabilities[curr_pos][suffix_code] = v / pos_count[k[1]]
+    for k, v in capital_pos.items():
+        curr_pos = pos_index[k[1]]
+        capital_code = k[0]
+        capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
 
-    return transition_probabilities, word_emission_probabilities
+    return (
+        transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    )
+
+
+def simple_rule_based_tagger(term):
+    rules = [
+        (r'.*ing$', 1),
+        (r'.*ed$', 2),
+        (r'.*ion$', 3),
+        (r'.*s$', 4),
+        (r'.*al$', 5),
+        (r'.*ive$', 6),
+        (r'.*', 0)
+    ]
+    for rule in rules:
+        if re.match(rule[0], term):
+            return rule[1]
+
+
+def capitalization_detector(term):
+    if (term.isupper()):
+        return 1
+    if (term[0].isupper()):
+        return 2
+    return 0
 
 
 def train_model(train_file, model_file):
@@ -39,6 +77,8 @@ def train_model(train_file, model_file):
     output_word_count = defaultdict(int)
     pos_bigram_types = defaultdict(set)
     word_pos_pair_types = defaultdict(set)
+    capital_pos = defaultdict(int)
+    suffix_pos = defaultdict(int)
 
     with open(train_file) as f:
         lines = f.readlines()
@@ -64,6 +104,9 @@ def train_model(train_file, model_file):
                 pos_bigrams[(prev_pos, pos)] += 1
                 pos_count[pos] += 1
 
+                suffix_pos[(simple_rule_based_tagger(term), pos)] += 1
+                capital_pos[(capitalization_detector(term), pos)] += 1
+
                 # Remove unk words for now
                 if (word_count[term] <= unk_words_threshold):
                     term = UNK
@@ -87,8 +130,10 @@ def train_model(train_file, model_file):
         for index, val in enumerate(output_word_count.keys()):
             word_index[val] = index
 
-        transition_probabilities, word_emission_probabilities = no_smoothing(
-            pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index
+        (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
+        capitalization_emission_probabilities) = no_smoothing(
+            pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
+            capital_pos, suffix_pos
         )
 
     with open(model_file, 'wb') as f:
@@ -98,6 +143,8 @@ def train_model(train_file, model_file):
             'pos_list': pos_list,
             'transition_probabilities': transition_probabilities,
             'word_emission_probabilities': word_emission_probabilities,
+            'suffix_emission_probabilities': suffix_emission_probabilities,
+            'capitalization_emission_probabilities': capitalization_emission_probabilities,
         }, f)
 
     print('Finished...')
