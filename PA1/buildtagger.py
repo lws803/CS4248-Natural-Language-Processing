@@ -93,12 +93,6 @@ def train_model(train_file, model_file):
 
     with open(model_file, 'wb') as f:
         pickle.dump({
-            'pos_bigrams': dict(pos_bigrams),
-            'word_pos_pair': dict(word_pos_pair),
-            'pos_count': dict(pos_count),
-            'word_count': dict(output_word_count),
-            'pos_bigram_types': {kv[0]: len(kv[1]) for kv in pos_bigram_types.items()},
-            'word_pos_pair_types': {kv[0]: len(kv[1]) for kv in word_pos_pair_types.items()},
             'word_index': word_index,
             'pos_index': pos_index,
             'pos_list': pos_list,

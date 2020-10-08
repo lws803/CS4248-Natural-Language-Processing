@@ -65,19 +65,11 @@ class WittenBellSmoothing:
 
 class HiddenMarkovModel:
     def __init__(self, model):
-        self.pos_bigrams = model['pos_bigrams']
-        self.word_pos_pair = model['word_pos_pair']
-        self.pos_count = model['pos_count']
-        self.word_count = model['word_count']
-        self.pos_bigram_types = model['pos_bigram_types']
-        self.word_pos_pair_types = model['word_pos_pair_types']
         self.word_index = model['word_index']
         self.pos_index = model['pos_index']
         self.transition_probabilities = model['transition_probabilities']
         self.word_emission_probabilities = model['word_emission_probabilities']
         self.pos_list = model['pos_list']
-        self.curr_tag_given_previous_tag = None
-        self.curr_word_given_tag = None
 
     def simple_rule_based_tagger(self, term):
         rules = [
