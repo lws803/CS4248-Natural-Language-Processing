@@ -6,7 +6,7 @@ from collections import defaultdict
 import pickle
 
 UNK = '<UNK>'
-unk_words_threshold = 1
+unk_words_threshold = 0
 
 def train_model(train_file, model_file):
     pos_bigrams = defaultdict(int)
@@ -16,6 +16,7 @@ def train_model(train_file, model_file):
     output_word_count = defaultdict(int)
     pos_bigram_types = defaultdict(set)
     word_pos_pair_types = defaultdict(set)
+    # FIXME: Calculate the transition probability and word emission probability here
 
     with open(train_file) as f:
         lines = f.readlines()
