@@ -79,85 +79,48 @@ class HiddenMarkovModel:
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
-    def compute_score(
-        self, prev_state_score, prev_tag_index, curr_tag_index, curr_term,
-        last_state=False
-    ):
-        # TODO: Find a way to skip if there is no viterbi path here
-        if last_state:
-            score = prev_state_score + math.log(
-                self.transition_probabilities[prev_tag_index][curr_tag_index]
-                if self.transition_probabilities[prev_tag_index][curr_tag_index] > 0 else
-                1e-300
-            )
-            return score
-
-        if (curr_term not in self.word_index):
-            curr_term = '<UNK>'
-            # TODO: If word is unk we want to estimate based on the captalization or endings/ hyph
-        curr_word_index = self.word_index[curr_term]
-        score = prev_state_score + math.log(
-            self.transition_probabilities[prev_tag_index][curr_tag_index]
-            if self.transition_probabilities[prev_tag_index][curr_tag_index] > 0 else
-            1e-300
-        ) + math.log(
-            self.word_emission_probabilities[curr_tag_index][curr_word_index]
-            if self.word_emission_probabilities[curr_tag_index][curr_word_index] > 0 else
-            1e-300
-        )
-        return score
-
     def compute_viterbi(self, sentence):
-        backpointer_table = {}
         start_tag = '<s>'
         end_tag = '</s>'
-        # tags = list(self.pos_count.keys())
-        # tags.remove(start_tag)
-        # tags.remove(end_tag)
-        # FIXME: Do we need to remove these two tags
         terms = sentence.split()
-        viterbi_table = np.full(
-            (len(self.pos_index), len(terms)), -math.inf, dtype=float
-        )
+        # TODO: Refactor and change implementation to use log probabilities
+        viterbi_table = np.zeros((len(self.pos_index), len(terms)), dtype=float)
+        retraceMatrix = np.zeros((len(self.pos_index), len(terms)), dtype='int') - 1
         # Init
-        for i in range(0, len(self.pos_index)):
-            viterbi_table[i][0] = (
-                self.compute_score(0, self.pos_index[start_tag], i, terms[0])
-            )
-        # TODO: Find out how to optimize this with the numpy code.
+        viterbi_table[:, 0] = np.multiply(
+            self.word_emission_probabilities[
+                :,
+                self.word_index[terms[0] if terms[0] in self.word_index else '<UNK>']
+            ], self.transition_probabilities[self.pos_index[start_tag], :])
+
         for i in range(1, len(terms)):
             for j in range(0, len(self.pos_index)):
-                backpointer_table[(self.pos_list[j], terms[i])] = None
-                for k in range(0, len(self.pos_index)):
-                    prev_state_score = viterbi_table[k][i - 1]
-                    score = self.compute_score(prev_state_score, k, j, terms[i])
-                    if score > viterbi_table[j][i]:
-                        viterbi_table[j][i] = score
-                        backpointer_table[(self.pos_list[j], terms[i])] = self.pos_list[k]
+                states_give_prev_pos = np.multiply(
+                    viterbi_table[:, i - 1], self.transition_probabilities[:, j]
+                )
+                curr_term = terms[i]
+                if terms[i] not in self.word_index:
+                    curr_term = '<UNK>'
+                word_index = self.word_index[curr_term]
 
-        # End of sentence
-        backpointer_table[(end_tag, terms[-1])] = None
-        end_tag_index = self.pos_index[end_tag]
-        for i in range(0, len(self.pos_index)):
-            prev_state_score = viterbi_table[i][len(terms) - 1]
-            score = self.compute_score(
-                prev_state_score, i, end_tag_index, terms[-1], True
-            )
-            if score > viterbi_table[end_tag_index][len(terms) - 1]:
-                viterbi_table[end_tag_index][len(terms) - 1] = score
-                backpointer_table[(end_tag, terms[-1])] = self.pos_list[i]
+                maximizingPrevPos = np.argmax(states_give_prev_pos)
+                retraceMatrix[j, i] = maximizingPrevPos
+                viterbi_table[j, i] = (
+                    states_give_prev_pos[maximizingPrevPos] *
+                    self.word_emission_probabilities[j, word_index]
+                )
 
-        # Backtrack
-        reversed_terms_list = terms[::-1]
-        reversed_terms_list.pop()
-        output_tags = [backpointer_table[(end_tag, reversed_terms_list[0])]]
-        prev_tag = backpointer_table[(end_tag, reversed_terms_list[0])]
-        for term in reversed_terms_list:
-            output_tags.append(backpointer_table[(prev_tag, term)])
-            prev_tag = backpointer_table[(prev_tag, term)]
-        output_tags.reverse()
+        output = "\n"
+        tagIndex = np.argmax(np.multiply(
+            viterbi_table[:, -1], self.transition_probabilities[:, self.pos_index[end_tag]])
+        )
+        output = terms[-1] + '/' + self.pos_list[tagIndex] + output
 
-        return output_tags
+        for i in range(0, len(terms) - 1):
+            tagIndex = retraceMatrix[tagIndex, len(terms) - 2 - i + 1]
+            output = terms[len(terms) - 2 - i] + '/' + self.pos_list[tagIndex] + ' ' + output
+
+        return output
 
 def tag_sentence(test_file, model_file, out_file):
     model = None
@@ -178,14 +141,7 @@ def tag_sentence(test_file, model_file, out_file):
             counter = 0
             for line in lines:
                 print((counter / len(lines)) * 100)
-                tags = hmm.compute_viterbi(line)
-                output_str = ''
-                for i in range(0, len(tags)):
-                    output_str += '{}/{}'.format(line.split()[i], tags[i])
-                    if i < len(tags) - 1:
-                        output_str += ' '
-                    else:
-                        output_str += '\n'
+                output_str = hmm.compute_viterbi(line)
                 f_output.write(output_str)
                 counter += 1
 
