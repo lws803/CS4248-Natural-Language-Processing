@@ -5,7 +5,7 @@ import sys
 import datetime
 import pickle
 import numpy as np
-
+import re
 
 class WittenBellSmoothing:
     @staticmethod
@@ -79,46 +79,63 @@ class HiddenMarkovModel:
         self.curr_tag_given_previous_tag = None
         self.curr_word_given_tag = None
 
+    def simple_rule_based_tagger(self, term):
+        rules = [
+            (r'.*ing$', 'VBG'),
+            (r'.*ed$', 'VBD'),
+            (r'.*es$', 'VB'),
+            (r'.*s$', 'NNS'),
+            (r'^-?[0-9]+(.[0-9]+)?$', 'CD'),
+            (r'.*', 'NN')
+        ]
+        for rule in rules:
+            if re.match(rule[0], term):
+                return rule[1]
+
     def compute_viterbi(self, sentence):
         start_tag = '<s>'
         end_tag = '</s>'
         terms = sentence.split()
-        # TODO: Refactor and change implementation to use log probabilities
         viterbi_table = np.zeros((len(self.pos_index), len(terms)), dtype=float)
         backtrack = np.zeros((len(self.pos_index), len(terms)), dtype='int') - 1
+
         # Init
+        pr_word_emission_mtx = None
+        if terms[0] in self.word_index:
+            pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index[terms[0]]]
+        else:
+            pr_word_emission_mtx = self.word_emission_probabilities[:, self.word_index['<UNK>']]
+
         viterbi_table[:, 0] = np.multiply(
-            self.word_emission_probabilities[
-                :,
-                self.word_index[terms[0] if terms[0] in self.word_index else '<UNK>']
-            ], self.transition_probabilities[self.pos_index[start_tag], :])
+            pr_word_emission_mtx, self.transition_probabilities[self.pos_index[start_tag], :])
 
         for i in range(1, len(terms)):
             for j in range(0, len(self.pos_index)):
                 states_give_prev_pos = np.multiply(
                     viterbi_table[:, i - 1], self.transition_probabilities[:, j]
                 )
-                curr_term = terms[i]
-                if terms[i] not in self.word_index:
-                    curr_term = '<UNK>'
-                word_index = self.word_index[curr_term]
+                pr_word_emission = 0
+                if terms[i] in self.word_index:
+                    word_index = self.word_index[terms[i]]
+                    pr_word_emission = self.word_emission_probabilities[j, word_index]
+                else:
+                    pr_word_emission = self.word_emission_probabilities[j, self.word_index['<UNK>']]
 
                 max_prev_pos = np.argmax(states_give_prev_pos)
                 backtrack[j, i] = max_prev_pos
                 viterbi_table[j, i] = (
-                    states_give_prev_pos[max_prev_pos] *
-                    self.word_emission_probabilities[j, word_index]
+                    states_give_prev_pos[max_prev_pos] * pr_word_emission
                 )
 
         output = "\n"
-        tagIndex = np.argmax(np.multiply(
+        last_tag_index = np.argmax(np.multiply(
             viterbi_table[:, -1], self.transition_probabilities[:, self.pos_index[end_tag]])
         )
-        output = terms[-1] + '/' + self.pos_list[tagIndex] + output
+        output = terms[-1] + '/' + self.pos_list[last_tag_index] + output
 
         for i in range(0, len(terms) - 1):
-            tagIndex = backtrack[tagIndex, len(terms) - 2 - i + 1]
-            output = terms[len(terms) - 2 - i] + '/' + self.pos_list[tagIndex] + ' ' + output
+            last_tag_index = backtrack[last_tag_index, len(terms) - 2 - i + 1]
+            output = terms[len(terms) - 2 - i] + '/' + self.pos_list[last_tag_index] + ' ' + output
 
         return output
 
