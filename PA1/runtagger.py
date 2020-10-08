@@ -85,7 +85,7 @@ class HiddenMarkovModel:
         terms = sentence.split()
         # TODO: Refactor and change implementation to use log probabilities
         viterbi_table = np.zeros((len(self.pos_index), len(terms)), dtype=float)
-        retraceMatrix = np.zeros((len(self.pos_index), len(terms)), dtype='int') - 1
+        backtrack = np.zeros((len(self.pos_index), len(terms)), dtype='int') - 1
         # Init
         viterbi_table[:, 0] = np.multiply(
             self.word_emission_probabilities[
@@ -103,10 +103,10 @@ class HiddenMarkovModel:
                     curr_term = '<UNK>'
                 word_index = self.word_index[curr_term]
 
-                maximizingPrevPos = np.argmax(states_give_prev_pos)
-                retraceMatrix[j, i] = maximizingPrevPos
+                max_prev_pos = np.argmax(states_give_prev_pos)
+                backtrack[j, i] = max_prev_pos
                 viterbi_table[j, i] = (
-                    states_give_prev_pos[maximizingPrevPos] *
+                    states_give_prev_pos[max_prev_pos] *
                     self.word_emission_probabilities[j, word_index]
                 )
 
@@ -117,7 +117,7 @@ class HiddenMarkovModel:
         output = terms[-1] + '/' + self.pos_list[tagIndex] + output
 
         for i in range(0, len(terms) - 1):
-            tagIndex = retraceMatrix[tagIndex, len(terms) - 2 - i + 1]
+            tagIndex = backtrack[tagIndex, len(terms) - 2 - i + 1]
             output = terms[len(terms) - 2 - i] + '/' + self.pos_list[tagIndex] + ' ' + output
 
         return output

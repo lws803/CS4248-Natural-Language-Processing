@@ -10,7 +10,7 @@ import numpy as np
 UNK = '<UNK>'
 unk_words_threshold = 1
 
-
+# TODO: Do an add one smoothing. We need non zero transition paths
 def no_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index, word_index
 ):
