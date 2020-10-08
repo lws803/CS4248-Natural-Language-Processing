@@ -13,7 +13,7 @@ unk_words_threshold = 1
 
 def no_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
-    word_index, capital_pos, suffix_pos
+    word_index, capital_pos, suffix_pos, pos_list, word_list
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
     suffix_emission_probabilities = np.zeros((len(pos_index), 7))
@@ -48,24 +48,30 @@ def no_smoothing(
 
 def ao_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
-    word_index, capital_pos, suffix_pos
+    word_index, capital_pos, suffix_pos, pos_list, word_list
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
     suffix_emission_probabilities = np.zeros((len(pos_index), 7))
     capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
     transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
 
-    # TODO: Iterate through entire array and smooth out the transition matrix
-    for k, v in pos_bigrams.items():
-        prev_pos = k[0]
-        prev_pos_index = pos_index[k[0]]
-        curr_pos_index = pos_index[k[1]]
-        transition_probabilities[prev_pos_index][curr_pos_index] = v / pos_count[prev_pos]
-    for k, v in word_pos_pair.items():
-        pos = k[0]
-        curr_pos_index = pos_index[k[0]]
-        curr_word_index = word_index[k[1]]
-        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
+    for i in range(0, len(pos_index)):
+        for j in range(0, len(pos_index)):
+            prev_pos = pos_list[i]
+            curr_pos = pos_list[j]
+            v = pos_bigrams[(prev_pos, curr_pos)] if (prev_pos, curr_pos) in pos_bigrams else 0
+            transition_probabilities[i][j] = (
+                (v + 1) / (pos_count[prev_pos] + len(pos_index))
+            )
+
+    for i in range(0, len(pos_index)):
+        for j in range(0, len(word_index)):
+            pos = pos_list[i]
+            curr_word = word_list[j]
+            v = word_pos_pair[(pos, curr_word)] if (pos, curr_word) in word_pos_pair else 0
+            word_emission_probabilities[i][j] = (
+                (v + 1) / (pos_count[pos] + len(pos_index))
+            )
 
     # TODO: Do the same for this one
     for k, v in suffix_pos.items():
@@ -160,17 +166,19 @@ def train_model(train_file, model_file):
         pos_index = {}
         word_index = {}
         pos_list = [None] * len(pos_count.keys())
+        word_list = [None] * len(word_count.keys())
 
         for index, val in enumerate(pos_count.keys()):
             pos_index[val] = index
             pos_list[index] = val
         for index, val in enumerate(output_word_count.keys()):
             word_index[val] = index
+            word_list[index] = val
 
         (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
         capitalization_emission_probabilities) = no_smoothing(
             pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
-            capital_pos, suffix_pos
+            capital_pos, suffix_pos, pos_list, word_list
         )
 
     with open(model_file, 'wb') as f:
