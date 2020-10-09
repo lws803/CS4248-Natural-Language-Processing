@@ -11,20 +11,11 @@ import re
 UNK = '<UNK>'
 unk_words_threshold = 1
 
-def no_smoothing(
-    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
-    word_index, capital_pos, suffix_pos, pos_list, word_list
-):
-    word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
-    suffix_emission_probabilities = np.zeros((len(pos_index), 8))
-    capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
-    transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
 
-    for k, v in pos_bigrams.items():
-        prev_pos = k[0]
-        prev_pos_index = pos_index[k[0]]
-        curr_pos_index = pos_index[k[1]]
-        transition_probabilities[prev_pos_index][curr_pos_index] = v / pos_count[prev_pos]
+def compute_emission_probabilities(
+    word_pos_pair, pos_index, word_index, pos_count, word_emission_probabilities, suffix_pos,
+    suffix_emission_probabilities, capital_pos, capitalization_emission_probabilities
+):
     for k, v in word_pos_pair.items():
         pos = k[0]
         curr_pos_index = pos_index[k[0]]
@@ -41,6 +32,37 @@ def no_smoothing(
         capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
 
     return (
+        word_emission_probabilities,
+        suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    )
+
+
+def no_smoothing(
+    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
+    word_index, capital_pos, suffix_pos, pos_list, word_list, pos_bigram_types
+):
+    word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 8))
+    capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
+    transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
+
+    for k, v in pos_bigrams.items():
+        prev_pos = k[0]
+        prev_pos_index = pos_index[k[0]]
+        curr_pos_index = pos_index[k[1]]
+        transition_probabilities[prev_pos_index][curr_pos_index] = v / pos_count[prev_pos]
+
+    (
+        word_emission_probabilities,
+        suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    ) = compute_emission_probabilities(
+        word_pos_pair, pos_index, word_index, pos_count, word_emission_probabilities, suffix_pos,
+        suffix_emission_probabilities, capital_pos, capitalization_emission_probabilities
+    )
+
+    return (
         transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
         capitalization_emission_probabilities
     )
@@ -48,7 +70,7 @@ def no_smoothing(
 
 def ao_smoothing(
     pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
-    word_index, capital_pos, suffix_pos, pos_list, word_list
+    word_index, capital_pos, suffix_pos, pos_list, word_list, pos_bigram_types
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
     suffix_emission_probabilities = np.zeros((len(pos_index), 8))
@@ -65,25 +87,20 @@ def ao_smoothing(
             )
 
     # We don't want smoothing for word emission
-    for k, v in word_pos_pair.items():
-        pos = k[0]
-        curr_pos_index = pos_index[k[0]]
-        curr_word_index = word_index[k[1]]
-        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
-
-    for k, v in suffix_pos.items():
-        curr_pos = pos_index[k[1]]
-        suffix_code = k[0]
-        suffix_emission_probabilities[curr_pos][suffix_code] = v / pos_count[k[1]]
-    for k, v in capital_pos.items():
-        curr_pos = pos_index[k[1]]
-        capital_code = k[0]
-        capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
+    (
+        word_emission_probabilities,
+        suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    ) = compute_emission_probabilities(
+        word_pos_pair, pos_index, word_index, pos_count, word_emission_probabilities, suffix_pos,
+        suffix_emission_probabilities, capital_pos, capitalization_emission_probabilities
+    )
 
     return (
         transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
         capitalization_emission_probabilities
     )
+
 
 
 def witten_bell_smoothing(
@@ -112,20 +129,14 @@ def witten_bell_smoothing(
                 )
 
     # We don't want smoothing for word emission
-    for k, v in word_pos_pair.items():
-        pos = k[0]
-        curr_pos_index = pos_index[k[0]]
-        curr_word_index = word_index[k[1]]
-        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
-
-    for k, v in suffix_pos.items():
-        curr_pos = pos_index[k[1]]
-        suffix_code = k[0]
-        suffix_emission_probabilities[curr_pos][suffix_code] = v / pos_count[k[1]]
-    for k, v in capital_pos.items():
-        curr_pos = pos_index[k[1]]
-        capital_code = k[0]
-        capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
+    (
+        word_emission_probabilities,
+        suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    ) = compute_emission_probabilities(
+        word_pos_pair, pos_index, word_index, pos_count, word_emission_probabilities, suffix_pos,
+        suffix_emission_probabilities, capital_pos, capitalization_emission_probabilities
+    )
 
     return (
         transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
@@ -219,12 +230,6 @@ def train_model(train_file, model_file):
         for index, val in enumerate(output_word_count.keys()):
             word_index[val] = index
             word_list[index] = val
-
-        # (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
-        # capitalization_emission_probabilities) = ao_smoothing(
-        #     pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
-        #     capital_pos, suffix_pos, pos_list, word_list
-        # )
 
         (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
         capitalization_emission_probabilities) = witten_bell_smoothing(
