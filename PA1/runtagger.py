@@ -110,7 +110,7 @@ def tag_sentence(test_file, model_file, out_file):
             lines = f.readlines()
             counter = 0
             for line in lines:
-                print((counter / len(lines)) * 100)
+                # print((counter / len(lines)) * 100)
                 output_str = hmm.compute_viterbi(line)
                 f_output.write(output_str)
                 counter += 1
