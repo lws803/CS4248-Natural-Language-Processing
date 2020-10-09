@@ -1,66 +1,10 @@
 # python3.5 runtagger.py <test_file_absolute_path> <model_file_absolute_path> <output_file_absolute_path>
 
-import math
 import sys
 import datetime
 import pickle
 import numpy as np
 import re
-
-class WittenBellSmoothing:
-    @staticmethod
-    def witten_bell_smoothing(
-        pos_count, pos_bigrams, word_pos_pair, pos_bigram_types, word_pos_pair_types
-    ):
-        curr_tag_given_previous_tag = {}
-        curr_word_given_tag = {}
-        for k, v in pos_bigrams.items():
-            curr_tag_given_previous_tag[(k[1], k[0])] = (
-                v / (pos_count[k[0]] + pos_bigram_types[k[0]])
-            )
-
-        for k, v in word_pos_pair.items():
-            pos = k[0]
-            curr_word_given_tag[(k[1], k[0])] = (
-                v / (pos_count[pos] + word_pos_pair_types[pos])
-            )
-        return curr_tag_given_previous_tag, curr_word_given_tag
-
-    @staticmethod
-    def compute_score(
-        prev_state_score, prev_tag, curr_tag, curr_term,
-        curr_tag_given_previous_tag, curr_word_given_tag, pos_count,
-        pos_bigram_types, word_pos_pair_types, word_count,
-        last_state=False
-    ):
-        if (curr_term not in word_count):
-            curr_term = '<UNK>'
-
-        score = 0
-        T_prev_tag = pos_bigram_types[prev_tag]
-        pr_curr_tag_prev_tag = (
-            curr_tag_given_previous_tag[(curr_tag, prev_tag)]
-            if (curr_tag, prev_tag) in curr_tag_given_previous_tag
-            else T_prev_tag / (
-                (len(pos_count) - T_prev_tag) * (pos_count[prev_tag] + T_prev_tag))
-        )
-        if not last_state:
-            T_seen_word_types_given_tag = word_pos_pair_types[curr_tag]
-            pr_curr_term_curr_tag = (
-                curr_word_given_tag[(curr_term, curr_tag)]
-                if (curr_term, curr_tag) in curr_word_given_tag
-                else T_seen_word_types_given_tag / (
-                    (len(word_count) - T_seen_word_types_given_tag) * (
-                        pos_count[curr_tag] + T_seen_word_types_given_tag
-                    )
-                )
-            )
-            score = (
-                prev_state_score + math.log(pr_curr_tag_prev_tag) + math.log(pr_curr_term_curr_tag)
-            )
-        else:
-            score = prev_state_score + math.log(pr_curr_tag_prev_tag)
-        return score
 
 
 class HiddenMarkovModel:
@@ -148,6 +92,7 @@ class HiddenMarkovModel:
         )
         output = terms[-1] + '/' + self.pos_list[last_tag_index] + output
 
+        # TODO: Refactor this a bit, make it a little bit different
         for i in range(0, len(terms) - 1):
             last_tag_index = backtrack[last_tag_index, len(terms) - 2 - i + 1]
             output = terms[len(terms) - 2 - i] + '/' + self.pos_list[last_tag_index] + ' ' + output
@@ -159,13 +104,6 @@ def tag_sentence(test_file, model_file, out_file):
     with open(model_file, 'rb') as f:
         model = pickle.load(f)
     hmm = HiddenMarkovModel(model)
-
-    # sentence = input('input sentence: ')
-    # tags = hmm.compute_viterbi(sentence)
-    # output_str = ''
-    # for i in range(0, len(tags)):
-    #     output_str += '{}/{} '.format(sentence.split()[i], tags[i])
-    # print(output_str)
 
     with open(test_file) as f:
         with open(out_file, 'w+') as f_output:
