@@ -86,6 +86,53 @@ def ao_smoothing(
     )
 
 
+def witten_bell_smoothing(
+    pos_count, pos_bigrams, word_pos_pair, word_count, pos_index,
+    word_index, capital_pos, suffix_pos, pos_list, word_list, pos_bigram_types
+):
+    word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 8))
+    capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
+    transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
+
+    for i in range(0, len(pos_index)):
+        for j in range(0, len(pos_index)):
+            prev_pos = pos_list[i]
+            curr_pos = pos_list[j]
+            v = pos_bigrams[(prev_pos, curr_pos)] if (prev_pos, curr_pos) in pos_bigrams else 0
+            Tw0 = len(pos_bigram_types[prev_pos])
+            if v > 0:
+                transition_probabilities[i][j] = (
+                    v / (pos_count[prev_pos] + Tw0)
+                )
+            else:
+                Zw0 = len(pos_index) - Tw0
+                transition_probabilities[i][j] = (
+                    Tw0 / (Zw0 * (pos_count[prev_pos] + Tw0))
+                )
+
+    # We don't want smoothing for word emission
+    for k, v in word_pos_pair.items():
+        pos = k[0]
+        curr_pos_index = pos_index[k[0]]
+        curr_word_index = word_index[k[1]]
+        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
+
+    for k, v in suffix_pos.items():
+        curr_pos = pos_index[k[1]]
+        suffix_code = k[0]
+        suffix_emission_probabilities[curr_pos][suffix_code] = v / pos_count[k[1]]
+    for k, v in capital_pos.items():
+        curr_pos = pos_index[k[1]]
+        capital_code = k[0]
+        capitalization_emission_probabilities[curr_pos][capital_code] = v / pos_count[k[1]]
+
+    return (
+        transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
+        capitalization_emission_probabilities
+    )
+
+
 def simple_rule_based_tagger(term):
     rules = [
         (r'.*ing$', 1),
@@ -173,10 +220,16 @@ def train_model(train_file, model_file):
             word_index[val] = index
             word_list[index] = val
 
+        # (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
+        # capitalization_emission_probabilities) = ao_smoothing(
+        #     pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
+        #     capital_pos, suffix_pos, pos_list, word_list
+        # )
+
         (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
-        capitalization_emission_probabilities) = ao_smoothing(
+        capitalization_emission_probabilities) = witten_bell_smoothing(
             pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
-            capital_pos, suffix_pos, pos_list, word_list
+            capital_pos, suffix_pos, pos_list, word_list, pos_bigram_types
         )
 
     with open(model_file, 'wb') as f:
