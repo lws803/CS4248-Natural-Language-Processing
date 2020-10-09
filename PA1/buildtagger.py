@@ -51,7 +51,7 @@ def ao_smoothing(
     word_index, capital_pos, suffix_pos, pos_list, word_list
 ):
     word_emission_probabilities = np.zeros((len(pos_index), len(word_index)))
-    suffix_emission_probabilities = np.zeros((len(pos_index), 7))
+    suffix_emission_probabilities = np.zeros((len(pos_index), 8))
     capitalization_emission_probabilities = np.zeros((len(pos_index), 3))
     transition_probabilities = np.zeros((len(pos_index), len(pos_index)))
 
@@ -64,16 +64,13 @@ def ao_smoothing(
                 (v + 1) / (pos_count[prev_pos] + len(pos_index))
             )
 
-    for i in range(0, len(pos_index)):
-        for j in range(0, len(word_index)):
-            pos = pos_list[i]
-            curr_word = word_list[j]
-            v = word_pos_pair[(pos, curr_word)] if (pos, curr_word) in word_pos_pair else 0
-            word_emission_probabilities[i][j] = (
-                (v + 1) / (pos_count[pos] + len(pos_index))
-            )
+    # We don't want smoothing for word emission
+    for k, v in word_pos_pair.items():
+        pos = k[0]
+        curr_pos_index = pos_index[k[0]]
+        curr_word_index = word_index[k[1]]
+        word_emission_probabilities[curr_pos_index][curr_word_index] = v / pos_count[pos]
 
-    # TODO: Do the same for this one
     for k, v in suffix_pos.items():
         curr_pos = pos_index[k[1]]
         suffix_code = k[0]
@@ -177,7 +174,7 @@ def train_model(train_file, model_file):
             word_list[index] = val
 
         (transition_probabilities, word_emission_probabilities, suffix_emission_probabilities,
-        capitalization_emission_probabilities) = no_smoothing(
+        capitalization_emission_probabilities) = ao_smoothing(
             pos_count, pos_bigrams, word_pos_pair, output_word_count, pos_index, word_index,
             capital_pos, suffix_pos, pos_list, word_list
         )
