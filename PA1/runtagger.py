@@ -86,13 +86,12 @@ class HiddenMarkovModel:
                     states_give_prev_pos[max_prev_pos] * pr_word_emission
                 )
 
-        output = "\n"
+        output = '\n'
         last_tag_index = np.argmax(np.multiply(
             viterbi_table[:, -1], self.transition_probabilities[:, self.pos_index[end_tag]])
         )
         output = terms[-1] + '/' + self.pos_list[last_tag_index] + output
 
-        # TODO: Refactor this a bit, make it a little bit different
         for i in range(0, len(terms) - 1):
             last_tag_index = backtrack[last_tag_index, len(terms) - 2 - i + 1]
             output = terms[len(terms) - 2 - i] + '/' + self.pos_list[last_tag_index] + ' ' + output
@@ -110,7 +109,7 @@ def tag_sentence(test_file, model_file, out_file):
             lines = f.readlines()
             counter = 0
             for line in lines:
-                print((counter / len(lines)) * 100)
+                # print((counter / len(lines)) * 100)
                 output_str = hmm.compute_viterbi(line)
                 f_output.write(output_str)
                 counter += 1
