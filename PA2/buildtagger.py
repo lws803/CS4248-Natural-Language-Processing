@@ -13,9 +13,6 @@ import torch.optim as optim
 def train_model(train_file, model_file):
     # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
-    # TODO: Add word embeddings from pytorch
-    # TODO: Create a character embeddings too
-    # TODO: Randomize the weights for the embeddings
     # TODO: follow the seq2seq tutorial from pytorch
 
     term_count = defaultdict(int)
@@ -32,8 +29,10 @@ def train_model(train_file, model_file):
 
                 term_count[term] += 1
                 pos_count[pos] += 1
-                
-    import pdb; pdb.set_trace()
+
+    # TODO: Add word embeddings from pytorch
+    # TODO: Create a character embeddings too
+    # TODO: Randomize the weights for the embeddings
     print('Finished...')
     
 if __name__ == "__main__":
