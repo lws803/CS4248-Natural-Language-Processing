@@ -16,13 +16,21 @@ class CharCNN(nn.Module):
         super(CharCNN, self).__init__()
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(128, self.hidden_size)
-        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, stride=1)
+        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k)
         self.pool = nn.MaxPool1d(kernel_size=k)
 
     def forward(self, input):
+        # TODO: Verify that the transformation is correct
+        # TODO: Consider adding dropout layer here
         output = self.embedding(input)
-        # TODO: Find out how to transform the embedding matrix and pass it into cnn
-        pass
+        output = torch.transpose(output, 0, 1).unsqueeze(0)
+        output = self.conv1(output)
+        output = self.pool(output)
+        return output
+
+
+class BiLSTM(nn.Module):
+    pass
 
 
 def train_model(train_file, model_file):
@@ -55,6 +63,8 @@ def train_model(train_file, model_file):
     # TODO: Add word embeddings from pytorch
     # TODO: Create a character embeddings too
     # TODO: Randomize the weights for the embeddings
+
+    # TODO: Include the unknown word as well
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
@@ -65,7 +75,7 @@ def train_model(train_file, model_file):
         ix_to_char[i] = chr(i)
         char_to_ix[chr(i)] = i
 
-    char_cnn = CharCNN(hidden_size=10)
+    char_cnn = CharCNN(hidden_size=2)
     input_word = 'hello'
     char_cnn(torch.tensor([char_to_ix[character] for character in input_word], dtype=torch.long))
 
