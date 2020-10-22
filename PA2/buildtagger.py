@@ -10,6 +10,21 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+
+class CharCNN(nn.Module):
+    def __init__(self, hidden_size, l=3, k=3):
+        super(CharCNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.embedding = nn.Embedding(128, self.hidden_size)
+        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, stride=1)
+        self.pool = nn.MaxPool1d(kernel_size=k)
+
+    def forward(self, input):
+        output = self.embedding(input)
+        # TODO: Find out how to transform the embedding matrix and pass it into cnn
+        pass
+
+
 def train_model(train_file, model_file):
     # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
@@ -17,6 +32,12 @@ def train_model(train_file, model_file):
 
     term_count = defaultdict(int)
     pos_count = defaultdict(int)
+    word_to_ix = {}
+    ix_to_word = {}
+    pos_to_ix = {}
+    ix_to_pos = {}
+    ix_to_char = {}
+    char_to_ix = {}
     # Tokenizer
     with open(train_file) as f:
         lines = f.readlines()
@@ -30,11 +51,27 @@ def train_model(train_file, model_file):
                 term_count[term] += 1
                 pos_count[pos] += 1
 
+    # TODO: Obtain character embeddings as well
     # TODO: Add word embeddings from pytorch
     # TODO: Create a character embeddings too
     # TODO: Randomize the weights for the embeddings
+    for i, term in enumerate(term_count.keys()):
+        word_to_ix[term] = i
+        ix_to_word[i] = term
+    for i, pos in enumerate(pos_count.keys()):
+        pos_to_ix[pos] = i
+        ix_to_pos[i] = pos
+    for i in range(0, 128):
+        ix_to_char[i] = chr(i)
+        char_to_ix[chr(i)] = i
+
+    char_cnn = CharCNN(hidden_size=10)
+    input_word = 'hello'
+    char_cnn(torch.tensor([char_to_ix[character] for character in input_word], dtype=torch.long))
+
     print('Finished...')
-    
+
+
 if __name__ == "__main__":
     # make no changes here
     train_file = sys.argv[1]
