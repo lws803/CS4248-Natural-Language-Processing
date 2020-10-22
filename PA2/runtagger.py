@@ -7,7 +7,7 @@ import torch
 
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
-		# use torch library to load model_file
+	# use torch library to load model_file
     print('Finished...')
 
 if __name__ == "__main__":
