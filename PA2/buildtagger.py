@@ -17,11 +17,11 @@ class CharCNN(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(128, self.hidden_size)
         self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
-        self.pool = nn.MaxPool1d(kernel_size=k)
+        self.pool = nn.AdaptiveMaxPool1d(1)
 
-    def forward(self, input):
+    def forward(self, input_chars):
         # TODO: Consider adding dropout layer here
-        output = self.embedding(input)
+        output = self.embedding(input_chars)
         # output = torch.transpose(output_batches, 2, 1)  # for list of words
         output = torch.transpose(output, 0, 1).unsqueeze(0)
         output = self.conv1(output)
@@ -30,20 +30,25 @@ class CharCNN(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, hidden_size, vocab_size, ix_to_word_chars):
+    def __init__(self, word_embed_size, vocab_size, ix_to_word_chars):
         super(BiLSTM, self).__init__()
-        self.hidden_size = hidden_size
+        self.word_embed_size = word_embed_size
         self.ix_to_word_chars = ix_to_word_chars
 
-        self.embedding = nn.Embedding(vocab_size, self.hidden_size)
-        self.char_cnn = CharCNN(10)
+        self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
+        self.char_cnn = CharCNN(word_embed_size)
 
-    def forward(self, input, chars_input):
+    def forward(self, input_words):
         # TODO: Concatenate the character embeddings with the word embeddings
         # TODO: Will input be a sentence here, so we can disssect and find the embeddings for
         # char as well?
         # We might have to put a for loop in here and loop thru word by word to generate the
         # embedding matrix for it and tag it to the cnn
+        output = self.embedding(torch.tensor(input_words, dtype=torch.long))
+        for word_ix in input_words:
+            chars = self.ix_to_word_chars[word_ix]
+            import pdb; pdb.set_trace()
+            self.char_cnn(chars)  # Merge this together with the word embeddings
         pass
 
 
@@ -77,13 +82,17 @@ def train_model(train_file, model_file):
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
-        ix_to_word_chars[i] = [ord(character) for character in term]
+        ix_to_word_chars[i] = torch.tensor(
+            [ord(character) for character in term], dtype=torch.long
+        )
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    char_cnn = CharCNN(hidden_size=2)
+    # char_cnn = CharCNN(hidden_size=2)
+    bilstm = BiLSTM(3, len(word_to_ix), ix_to_word_chars)
+
     with open(train_file) as f:
         lines = f.readlines()
         for line in lines:
@@ -101,7 +110,8 @@ def train_model(train_file, model_file):
             #     for character in input_word] for input_word in words
             # ], dtype=torch.long)
             # FIXME: How do we handle cases when words are smaller than window size
-            char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
+            # char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
+            bilstm([word_to_ix[word] for word in words])
             break
 
     print('Finished...')
