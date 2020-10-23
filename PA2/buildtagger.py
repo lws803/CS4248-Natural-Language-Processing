@@ -42,11 +42,11 @@ class BiLSTM(nn.Module):
         self.ix_to_word_chars = ix_to_word_chars
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
-        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size, k=5)
+        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size, k=char_embed_size)
         self.bilstm = nn.LSTM(
             word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True
         )
-        self.linear = nn.Linear(lstm_hidden_size * 2 ,tag_size)
+        self.linear = nn.Linear(lstm_hidden_size * 2, tag_size)
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
@@ -55,6 +55,7 @@ class BiLSTM(nn.Module):
             [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
             device=DEVICE
         )
+        # TODO: Consider trying the older method again of for loops. See if that's better
         char_embeddings = self.char_cnn(list_of_word_chars)
         output = torch.cat((output, char_embeddings), 1)
         hidden, _ = self.bilstm(output.unsqueeze(1))
@@ -108,23 +109,24 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(10, 10, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(3, 5, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
     bilstm.to(DEVICE)
 
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
-    for i in range(5):
+    for i in range(3):
+        epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
             tag_scores = bilstm([word_to_ix[word] for word in words])
             loss = loss_function(tag_scores, torch.tensor(
                 [pos_to_ix[tag] for tag in tags], device=DEVICE
             ))
             loss.backward()
-            if not (index % 1000):
-                print(loss, index/len(sentences))
             optimizer.step()
-            final_loss = loss
+            epoch_loss = loss
+        print(epoch_loss)
+        final_loss = epoch_loss
     print(final_loss)
     prediction = bilstm(
         [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
