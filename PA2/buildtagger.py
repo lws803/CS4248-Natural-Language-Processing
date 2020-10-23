@@ -109,7 +109,7 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(3, 5, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(10, 5, 128, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
     bilstm.to(DEVICE)
 
     loss_function = nn.NLLLoss()
@@ -118,6 +118,8 @@ def train_model(train_file, model_file):
     for i in range(1):
         epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
+            bilstm.zero_grad()
+
             tag_scores = bilstm([word_to_ix[word] for word in words])
             loss = loss_function(tag_scores, torch.tensor(
                 [pos_to_ix[tag] for tag in tags], device=DEVICE
