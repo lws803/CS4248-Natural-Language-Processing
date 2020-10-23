@@ -4,12 +4,14 @@ import os
 import math
 import sys
 from collections import defaultdict
+import datetime
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 class CharCNN(nn.Module):
     def __init__(self, hidden_size, l=3, k=3):
@@ -47,10 +49,11 @@ class BiLSTM(nn.Module):
         self.linear = nn.Linear(lstm_hidden_size * 2 ,tag_size)
 
     def forward(self, input_words):
-        output = self.embedding(torch.tensor(input_words, dtype=torch.long))
+        output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
         # FIXME: Handle unknown words
         list_of_word_chars = torch.tensor(
-            [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long
+            [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
+            device=DEVICE
         )
         char_embeddings = self.char_cnn(list_of_word_chars)
         output = torch.cat((output, char_embeddings), 1)
@@ -106,16 +109,22 @@ def train_model(train_file, model_file):
 
     # TODO: Training, remember to split the training set first
     bilstm = BiLSTM(10, 10, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm.to(DEVICE)
+
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
-    for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
-        tag_scores = bilstm([word_to_ix[word] for word in words])
-        loss = loss_function(tag_scores, torch.tensor([pos_to_ix[tag] for tag in tags]))
-        loss.backward()
-        print(loss, index/len(sentences))
-        optimizer.step()
-        final_loss = loss
+    for i in range(5):
+        for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
+            tag_scores = bilstm([word_to_ix[word] for word in words])
+            loss = loss_function(tag_scores, torch.tensor(
+                [pos_to_ix[tag] for tag in tags], device=DEVICE
+            ))
+            loss.backward()
+            if not (index % 1000):
+                print(loss, index/len(sentences))
+            optimizer.step()
+            final_loss = loss
     print(final_loss)
     prediction = bilstm(
         [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
@@ -129,4 +138,7 @@ if __name__ == "__main__":
     # make no changes here
     train_file = sys.argv[1]
     model_file = sys.argv[2]
+    start_time = datetime.datetime.now()
     train_model(train_file, model_file)
+    end_time = datetime.datetime.now()
+    print('Time:', end_time - start_time)
