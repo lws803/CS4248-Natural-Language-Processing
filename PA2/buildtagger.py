@@ -30,7 +30,10 @@ class CharCNN(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, word_embed_size, char_embed_size, vocab_size, tag_size, ix_to_word_chars):
+    def __init__(
+        self, word_embed_size, char_embed_size, lstm_hidden_size,
+        vocab_size, tag_size, ix_to_word_chars
+    ):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
         self.char_embed_size = char_embed_size
@@ -38,8 +41,8 @@ class BiLSTM(nn.Module):
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
         self.char_cnn = CharCNN(char_embed_size, l=char_embed_size)
-        self.bilstm = nn.LSTM(word_embed_size + char_embed_size, 256, bidirectional=True)
-        self.linear = nn.Linear(256 * 2 ,tag_size)
+        self.bilstm = nn.LSTM(word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True)
+        self.linear = nn.Linear(lstm_hidden_size * 2 ,tag_size)
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long))
@@ -58,9 +61,7 @@ class BiLSTM(nn.Module):
 
 
 def train_model(train_file, model_file):
-    # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
-    # TODO: follow the seq2seq tutorial from pytorch
     # TODO: run k-fold cross validation?
 
     term_count = defaultdict(int)
@@ -70,10 +71,15 @@ def train_model(train_file, model_file):
     pos_to_ix = {}
     ix_to_pos = {}
     ix_to_word_chars = {}
+
+    sentences = []
+    sentence_tags = []
     # Tokenizer
     with open(train_file) as f:
         lines = f.readlines()
         for line in lines:
+            tags = []
+            words = []
             for term_pos_pairs in line.split():
                 term_pos_pairs = term_pos_pairs.split('/')
                 pos = term_pos_pairs[-1]
@@ -82,6 +88,10 @@ def train_model(train_file, model_file):
 
                 term_count[term] += 1
                 pos_count[pos] += 1
+                words.append(term)
+                tags.append(pos)
+            sentences.append(words)
+            sentence_tags.append(tags)
 
     # TODO: Include the unknown word as well
     for i, term in enumerate(term_count.keys()):
@@ -95,23 +105,18 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(3, 3, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
-
-    with open(train_file) as f:
-        lines = f.readlines()
-        for line in lines:
-            words = []
-            tags = []
-            for term_pos_pairs in line.split():
-                term_pos_pairs = term_pos_pairs.split('/')
-                pos = term_pos_pairs[-1]
-                term_pos_pairs.pop()
-                term = '/'.join(term_pos_pairs)
-                words.append(term)
-                tags.append(pos)
-            tag_scores = bilstm([word_to_ix[word] for word in words])
-            print(tag_scores)
-
+    bilstm = BiLSTM(3, 10, 128, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    loss_function = nn.NLLLoss()
+    optimizer = optim.Adam(bilstm.parameters())
+    final_loss = None
+    for index, (words, tags) in enumerate(zip(sentences[0: 300], sentence_tags[0: 300])):
+        tag_scores = bilstm([word_to_ix[word] for word in words])
+        loss = loss_function(tag_scores, torch.tensor([pos_to_ix[tag] for tag in tags]))
+        loss.backward()
+        print(loss, index/len(sentences))
+        optimizer.step()
+        final_loss = loss
+    print(final_loss)
     print('Finished...')
 
 
