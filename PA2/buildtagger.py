@@ -30,10 +30,13 @@ class CharCNN(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, hidden_size, vocab_size, word_to_ix, char_to_ix):
+    def __init__(self, hidden_size, vocab_size, ix_to_word_chars):
         super(BiLSTM, self).__init__()
         self.hidden_size = hidden_size
+        self.ix_to_word_chars = ix_to_word_chars
+
         self.embedding = nn.Embedding(vocab_size, self.hidden_size)
+        self.char_cnn = CharCNN(10)
 
     def forward(self, input, chars_input):
         # TODO: Concatenate the character embeddings with the word embeddings
@@ -99,7 +102,6 @@ def train_model(train_file, model_file):
             # ], dtype=torch.long)
             # FIXME: How do we handle cases when words are smaller than window size
             char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
-            import pdb; pdb.set_trace()
             break
 
     print('Finished...')
