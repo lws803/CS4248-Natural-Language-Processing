@@ -23,9 +23,10 @@ class CharCNN(nn.Module):
         # TODO: Verify that the transformation is correct
         # TODO: Consider adding dropout layer here
         output_batches = self.embedding(input)
-        output = torch.empty(0)
-        for batch in output_batches:
-            output = torch.cat((output, torch.transpose(batch, 0, 1).unsqueeze(0)))
+        # output = torch.empty(0)
+        # for batch in output_batches:
+        #     output = torch.cat((output, torch.transpose(batch, 0, 1).unsqueeze(0)))
+        output = torch.transpose(output_batches, 2, 1)
         output = self.conv1(output)
         output = self.pool(output)
         return output
