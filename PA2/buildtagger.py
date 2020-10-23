@@ -16,31 +16,31 @@ class CharCNN(nn.Module):
         super(CharCNN, self).__init__()
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(128, self.hidden_size)
-        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k)
+        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
         self.pool = nn.MaxPool1d(kernel_size=k)
 
     def forward(self, input):
-        # TODO: Verify that the transformation is correct
         # TODO: Consider adding dropout layer here
-        output_batches = self.embedding(input)
-        # output = torch.empty(0)
-        # for batch in output_batches:
-        #     output = torch.cat((output, torch.transpose(batch, 0, 1).unsqueeze(0)))
-        output = torch.transpose(output_batches, 2, 1)
+        output = self.embedding(input)
+        # output = torch.transpose(output_batches, 2, 1)  # for list of words
+        output = torch.transpose(output, 0, 1).unsqueeze(0)
         output = self.conv1(output)
         output = self.pool(output)
         return output
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, hidden_size, vocab_size):
+    def __init__(self, hidden_size, vocab_size, word_to_ix, char_to_ix):
         super(BiLSTM, self).__init__()
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(vocab_size, self.hidden_size)
 
-    def forward(self, input, input_char_embeddings):
+    def forward(self, input, chars_input):
+        # TODO: Concatenate the character embeddings with the word embeddings
         # TODO: Will input be a sentence here, so we can disssect and find the embeddings for
         # char as well?
+        # We might have to put a for loop in here and loop thru word by word to generate the
+        # embedding matrix for it and tag it to the cnn
         pass
 
 
@@ -56,8 +56,7 @@ def train_model(train_file, model_file):
     ix_to_word = {}
     pos_to_ix = {}
     ix_to_pos = {}
-    ix_to_char = {}
-    char_to_ix = {}
+    ix_to_word_chars = {}
     # Tokenizer
     with open(train_file) as f:
         lines = f.readlines()
@@ -71,28 +70,37 @@ def train_model(train_file, model_file):
                 term_count[term] += 1
                 pos_count[pos] += 1
 
-    # TODO: Obtain character embeddings as well
-    # TODO: Add word embeddings from pytorch
-    # TODO: Create a character embeddings too
-    # TODO: Randomize the weights for the embeddings
-
     # TODO: Include the unknown word as well
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
+        ix_to_word_chars[i] = [ord(character) for character in term]
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
-    for i in range(0, 128):
-        ix_to_char[i] = chr(i)
-        char_to_ix[chr(i)] = i
 
+    # TODO: Training, remember to split the training set first
     char_cnn = CharCNN(hidden_size=2)
-    sentence = ['hello', 'world']
-    char_cnn(torch.tensor([
-        [char_to_ix[character]
-        for character in input_word] for input_word in sentence
-    ], dtype=torch.long))
+    with open(train_file) as f:
+        lines = f.readlines()
+        for line in lines:
+            words = []
+            tags = []
+            for term_pos_pairs in line.split():
+                term_pos_pairs = term_pos_pairs.split('/')
+                pos = term_pos_pairs[-1]
+                term_pos_pairs.pop()
+                term = '/'.join(term_pos_pairs)
+                words.append(term)
+                tags.append(pos)
+            # char_indexes = torch.tensor([
+            #     [ord(character)
+            #     for character in input_word] for input_word in words
+            # ], dtype=torch.long)
+            # FIXME: How do we handle cases when words are smaller than window size
+            char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
+            import pdb; pdb.set_trace()
+            break
 
     print('Finished...')
 
