@@ -109,7 +109,7 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(10, 5, 128, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(10, 5, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
     bilstm.to(DEVICE)
 
     loss_function = nn.NLLLoss()
