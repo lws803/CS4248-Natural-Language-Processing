@@ -30,7 +30,7 @@ class CharCNN(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, word_embed_size, char_embed_size, vocab_size, ix_to_word_chars):
+    def __init__(self, word_embed_size, char_embed_size, vocab_size, tag_size, ix_to_word_chars):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
         self.char_embed_size = char_embed_size
@@ -39,6 +39,7 @@ class BiLSTM(nn.Module):
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
         self.char_cnn = CharCNN(char_embed_size, l=char_embed_size)
         self.bilstm = nn.LSTM(word_embed_size + char_embed_size, 256, bidirectional=True)
+        self.linear = nn.Linear(256 * 2 ,tag_size)
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long))
@@ -50,7 +51,10 @@ class BiLSTM(nn.Module):
             char_embeddings = torch.cat((char_embeddings, char_embedding.unsqueeze(0)))
         output = torch.cat((output, char_embeddings), 1)
         hidden, _ = self.bilstm(output.unsqueeze(1))
-        return hidden
+        hidden_reformatted = hidden.view(len(input_words), -1)
+        tag_space = self.linear(hidden_reformatted)
+        tag_scores = F.log_softmax(tag_space, dim=1)
+        return tag_scores
 
 
 def train_model(train_file, model_file):
@@ -91,7 +95,7 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(3, 3, len(word_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(3, 3, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
 
     with open(train_file) as f:
         lines = f.readlines()
@@ -105,14 +109,8 @@ def train_model(train_file, model_file):
                 term = '/'.join(term_pos_pairs)
                 words.append(term)
                 tags.append(pos)
-            # char_indexes = torch.tensor([
-            #     [ord(character)
-            #     for character in input_word] for input_word in words
-            # ], dtype=torch.long)
-            # FIXME: How do we handle cases when words are smaller than window size
-            # char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
-            bilstm([word_to_ix[word] for word in words])
-            break
+            tag_scores = bilstm([word_to_ix[word] for word in words])
+            print(tag_scores)
 
     print('Finished...')
 
