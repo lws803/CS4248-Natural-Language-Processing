@@ -18,6 +18,7 @@ class CharCNN(nn.Module):
         super(CharCNN, self).__init__()
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(128, self.hidden_size)
+        self.relu = nn.ReLU()
         self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
         self.pool = nn.AdaptiveMaxPool1d(1)
 
@@ -26,7 +27,7 @@ class CharCNN(nn.Module):
         output = self.embedding(input_chars_list)
         output = torch.transpose(output, 2, 1)  # for list of words
         # output = torch.transpose(output, 0, 1)
-        output = self.conv1(output)
+        output = self.relu(self.conv1(output))
         output = self.pool(output)
         return output.squeeze(2)
 
@@ -55,7 +56,6 @@ class BiLSTM(nn.Module):
             [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
             device=DEVICE
         )
-        # TODO: Consider trying the older method again of for loops. See if that's better
         char_embeddings = self.char_cnn(list_of_word_chars)
         output = torch.cat((output, char_embeddings), 1)
         hidden, _ = self.bilstm(output.unsqueeze(1))
@@ -115,7 +115,7 @@ def train_model(train_file, model_file):
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
-    for i in range(3):
+    for i in range(1):
         epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
             tag_scores = bilstm([word_to_ix[word] for word in words])
@@ -132,7 +132,6 @@ def train_model(train_file, model_file):
         [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
     )
     print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
-    import pdb; pdb.set_trace()
     print('Finished...')
 
 
