@@ -12,6 +12,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+EPOCHS = 2  # See if we really need to run 2 epochs
+WORD_EMBEDDINGS_SIZE = 10
+CHAR_EMBEDDINGS_SIZE = 5
+LSTM_HIDDEN_SIZE = 256
 
 class CharCNN(nn.Module):
     def __init__(self, hidden_size, l=3, k=3):
@@ -109,13 +113,16 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(10, 5, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(
+        WORD_EMBEDDINGS_SIZE, CHAR_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
+        len(word_to_ix), len(pos_to_ix), ix_to_word_chars
+    )
     bilstm.to(DEVICE)
 
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
-    for i in range(1):
+    for i in range(EPOCHS):
         epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
             bilstm.zero_grad()
