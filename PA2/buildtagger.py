@@ -19,14 +19,14 @@ class CharCNN(nn.Module):
         self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
         self.pool = nn.AdaptiveMaxPool1d(1)
 
-    def forward(self, input_chars):
+    def forward(self, input_chars_list):
         # TODO: Consider adding dropout layer here
-        output = self.embedding(input_chars)
-        # output = torch.transpose(output_batches, 2, 1)  # for list of words
-        output = torch.transpose(output, 0, 1).unsqueeze(0)
+        output = self.embedding(input_chars_list)
+        output = torch.transpose(output, 2, 1)  # for list of words
+        # output = torch.transpose(output, 0, 1)
         output = self.conv1(output)
         output = self.pool(output)
-        return torch.flatten(output)
+        return output.squeeze(2)
 
 
 class BiLSTM(nn.Module):
@@ -48,12 +48,11 @@ class BiLSTM(nn.Module):
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long))
-        char_embeddings = torch.empty((0, self.char_embed_size))
-        # TODO: This might be expensive operaiton
-        for word_ix in input_words:
-            chars = self.ix_to_word_chars[word_ix]
-            char_embedding = self.char_cnn(chars)  # Merge this together with the word embeddingss
-            char_embeddings = torch.cat((char_embeddings, char_embedding.unsqueeze(0)))
+        # FIXME: Handle unknown words
+        list_of_word_chars = torch.tensor(
+            [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long
+        )
+        char_embeddings = self.char_cnn(list_of_word_chars)
         output = torch.cat((output, char_embeddings), 1)
         hidden, _ = self.bilstm(output.unsqueeze(1))
         hidden_reformatted = hidden.view(len(input_words), -1)
@@ -98,9 +97,9 @@ def train_model(train_file, model_file):
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
-        ix_to_word_chars[i] = torch.tensor(
-            [ord(character) for character in term], dtype=torch.long
-        )
+        word_chars = [ord(character) for character in term]
+        # Padded words
+        ix_to_word_chars[i] = word_chars[0:60] + [0 for i in range(60 - len(word_chars))]
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
@@ -110,12 +109,11 @@ def train_model(train_file, model_file):
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
-    for index, (words, tags) in enumerate(zip(sentences[0: 500], sentence_tags[0: 500])):
-        # FIXME: If unk words, we will initialize an embedding vector of zeroes
+    for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
         tag_scores = bilstm([word_to_ix[word] for word in words])
         loss = loss_function(tag_scores, torch.tensor([pos_to_ix[tag] for tag in tags]))
         loss.backward()
-        print(loss, index/500)
+        print(loss, index/len(sentences))
         optimizer.step()
         final_loss = loss
     print(final_loss)
