@@ -26,7 +26,7 @@ class CharCNN(nn.Module):
         output = torch.transpose(output, 0, 1).unsqueeze(0)
         output = self.conv1(output)
         output = self.pool(output)
-        return output
+        return torch.flatten(output)
 
 
 class BiLSTM(nn.Module):
@@ -39,17 +39,16 @@ class BiLSTM(nn.Module):
         self.char_cnn = CharCNN(word_embed_size)
 
     def forward(self, input_words):
-        # TODO: Concatenate the character embeddings with the word embeddings
-        # TODO: Will input be a sentence here, so we can disssect and find the embeddings for
-        # char as well?
-        # We might have to put a for loop in here and loop thru word by word to generate the
-        # embedding matrix for it and tag it to the cnn
         output = self.embedding(torch.tensor(input_words, dtype=torch.long))
+        char_embeddings = torch.empty((0, self.word_embed_size))
+        # TODO: This might be expensive operaiton
         for word_ix in input_words:
             chars = self.ix_to_word_chars[word_ix]
-            import pdb; pdb.set_trace()
-            self.char_cnn(chars)  # Merge this together with the word embeddings
-        pass
+            char_embedding = self.char_cnn(chars)  # Merge this together with the word embeddingss
+            char_embeddings = torch.cat((char_embeddings, char_embedding.unsqueeze(0)))
+        output = torch.cat((output, char_embeddings), 1)
+
+        return output
 
 
 def train_model(train_file, model_file):
