@@ -40,8 +40,10 @@ class BiLSTM(nn.Module):
         self.ix_to_word_chars = ix_to_word_chars
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
-        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size)
-        self.bilstm = nn.LSTM(word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True)
+        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size, k=5)
+        self.bilstm = nn.LSTM(
+            word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True
+        )
         self.linear = nn.Linear(lstm_hidden_size * 2 ,tag_size)
 
     def forward(self, input_words):
@@ -93,7 +95,6 @@ def train_model(train_file, model_file):
                 sentences.append(words)
                 sentence_tags.append(tags)
 
-    # TODO: Include the unknown word as well
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
@@ -105,11 +106,12 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    bilstm = BiLSTM(3, 10, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(10, 10, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
     final_loss = None
     for index, (words, tags) in enumerate(zip(sentences[0: 500], sentence_tags[0: 500])):
+        # FIXME: If unk words, we will initialize an embedding vector of zeroes
         tag_scores = bilstm([word_to_ix[word] for word in words])
         loss = loss_function(tag_scores, torch.tensor([pos_to_ix[tag] for tag in tags]))
         loss.backward()
