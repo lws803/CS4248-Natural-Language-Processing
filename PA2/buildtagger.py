@@ -17,42 +17,54 @@ class CharCNN(nn.Module):
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(128, self.hidden_size)
         self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
-        self.pool = nn.MaxPool1d(kernel_size=k)
+        self.pool = nn.AdaptiveMaxPool1d(1)
 
-    def forward(self, input):
+    def forward(self, input_chars):
         # TODO: Consider adding dropout layer here
-        output = self.embedding(input)
+        output = self.embedding(input_chars)
         # output = torch.transpose(output_batches, 2, 1)  # for list of words
         output = torch.transpose(output, 0, 1).unsqueeze(0)
         output = self.conv1(output)
         output = self.pool(output)
-        return output
+        return torch.flatten(output)
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, hidden_size, vocab_size, ix_to_word_chars):
+    def __init__(
+        self, word_embed_size, char_embed_size, lstm_hidden_size,
+        vocab_size, tag_size, ix_to_word_chars
+    ):
         super(BiLSTM, self).__init__()
-        self.hidden_size = hidden_size
+        self.word_embed_size = word_embed_size
+        self.char_embed_size = char_embed_size
         self.ix_to_word_chars = ix_to_word_chars
 
-        self.embedding = nn.Embedding(vocab_size, self.hidden_size)
-        self.char_cnn = CharCNN(10)
+        self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
+        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size, k=5)
+        self.bilstm = nn.LSTM(
+            word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True
+        )
+        self.linear = nn.Linear(lstm_hidden_size * 2 ,tag_size)
 
-    def forward(self, input, chars_input):
-        # TODO: Concatenate the character embeddings with the word embeddings
-        # TODO: Will input be a sentence here, so we can disssect and find the embeddings for
-        # char as well?
-        # We might have to put a for loop in here and loop thru word by word to generate the
-        # embedding matrix for it and tag it to the cnn
-        pass
+    def forward(self, input_words):
+        output = self.embedding(torch.tensor(input_words, dtype=torch.long))
+        char_embeddings = torch.empty((0, self.char_embed_size))
+        # TODO: This might be expensive operaiton
+        for word_ix in input_words:
+            chars = self.ix_to_word_chars[word_ix]
+            char_embedding = self.char_cnn(chars)  # Merge this together with the word embeddingss
+            char_embeddings = torch.cat((char_embeddings, char_embedding.unsqueeze(0)))
+        output = torch.cat((output, char_embeddings), 1)
+        hidden, _ = self.bilstm(output.unsqueeze(1))
+        hidden_reformatted = hidden.view(len(input_words), -1)
+        tag_space = self.linear(hidden_reformatted)
+        tag_scores = F.log_softmax(tag_space, dim=1)
+        return tag_scores
 
 
 def train_model(train_file, model_file):
-    # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
-    # TODO: follow the seq2seq tutorial from pytorch
     # TODO: run k-fold cross validation?
-
     term_count = defaultdict(int)
     pos_count = defaultdict(int)
     word_to_ix = {}
@@ -60,50 +72,58 @@ def train_model(train_file, model_file):
     pos_to_ix = {}
     ix_to_pos = {}
     ix_to_word_chars = {}
-    # Tokenizer
-    with open(train_file) as f:
-        lines = f.readlines()
-        for line in lines:
-            for term_pos_pairs in line.split():
-                term_pos_pairs = term_pos_pairs.split('/')
-                pos = term_pos_pairs[-1]
-                term_pos_pairs.pop()
-                term = '/'.join(term_pos_pairs)
+    sentences = []
+    sentence_tags = []
 
-                term_count[term] += 1
-                pos_count[pos] += 1
+    with torch.no_grad():
+        # Tokenizer
+        with open(train_file) as f:
+            lines = f.readlines()
+            for line in lines:
+                tags = []
+                words = []
+                for term_pos_pairs in line.split():
+                    term_pos_pairs = term_pos_pairs.split('/')
+                    pos = term_pos_pairs[-1]
+                    term_pos_pairs.pop()
+                    term = '/'.join(term_pos_pairs)
 
-    # TODO: Include the unknown word as well
+                    term_count[term] += 1
+                    pos_count[pos] += 1
+                    words.append(term)
+                    tags.append(pos)
+                sentences.append(words)
+                sentence_tags.append(tags)
+
     for i, term in enumerate(term_count.keys()):
         word_to_ix[term] = i
         ix_to_word[i] = term
-        ix_to_word_chars[i] = [ord(character) for character in term]
+        ix_to_word_chars[i] = torch.tensor(
+            [ord(character) for character in term], dtype=torch.long
+        )
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    char_cnn = CharCNN(hidden_size=2)
-    with open(train_file) as f:
-        lines = f.readlines()
-        for line in lines:
-            words = []
-            tags = []
-            for term_pos_pairs in line.split():
-                term_pos_pairs = term_pos_pairs.split('/')
-                pos = term_pos_pairs[-1]
-                term_pos_pairs.pop()
-                term = '/'.join(term_pos_pairs)
-                words.append(term)
-                tags.append(pos)
-            # char_indexes = torch.tensor([
-            #     [ord(character)
-            #     for character in input_word] for input_word in words
-            # ], dtype=torch.long)
-            # FIXME: How do we handle cases when words are smaller than window size
-            char_cnn(torch.tensor(ix_to_word_chars[word_to_ix[words[0]]]))
-            break
-
+    bilstm = BiLSTM(10, 10, 256, len(word_to_ix), len(pos_to_ix), ix_to_word_chars)
+    loss_function = nn.NLLLoss()
+    optimizer = optim.Adam(bilstm.parameters())
+    final_loss = None
+    for index, (words, tags) in enumerate(zip(sentences[0: 500], sentence_tags[0: 500])):
+        # FIXME: If unk words, we will initialize an embedding vector of zeroes
+        tag_scores = bilstm([word_to_ix[word] for word in words])
+        loss = loss_function(tag_scores, torch.tensor([pos_to_ix[tag] for tag in tags]))
+        loss.backward()
+        print(loss, index/500)
+        optimizer.step()
+        final_loss = loss
+    print(final_loss)
+    prediction = bilstm(
+        [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
+    )
+    print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
+    import pdb; pdb.set_trace()
     print('Finished...')
 
 
