@@ -30,25 +30,27 @@ class CharCNN(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, word_embed_size, vocab_size, ix_to_word_chars):
+    def __init__(self, word_embed_size, char_embed_size, vocab_size, ix_to_word_chars):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
+        self.char_embed_size = char_embed_size
         self.ix_to_word_chars = ix_to_word_chars
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
-        self.char_cnn = CharCNN(word_embed_size)
+        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size)
+        self.bilstm = nn.LSTM(word_embed_size + char_embed_size, 256, bidirectional=True)
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long))
-        char_embeddings = torch.empty((0, self.word_embed_size))
+        char_embeddings = torch.empty((0, self.char_embed_size))
         # TODO: This might be expensive operaiton
         for word_ix in input_words:
             chars = self.ix_to_word_chars[word_ix]
             char_embedding = self.char_cnn(chars)  # Merge this together with the word embeddingss
             char_embeddings = torch.cat((char_embeddings, char_embedding.unsqueeze(0)))
         output = torch.cat((output, char_embeddings), 1)
-
-        return output
+        hidden, _ = self.bilstm(output.unsqueeze(1))
+        return hidden
 
 
 def train_model(train_file, model_file):
@@ -89,8 +91,7 @@ def train_model(train_file, model_file):
         ix_to_pos[i] = pos
 
     # TODO: Training, remember to split the training set first
-    # char_cnn = CharCNN(hidden_size=2)
-    bilstm = BiLSTM(3, len(word_to_ix), ix_to_word_chars)
+    bilstm = BiLSTM(3, 3, len(word_to_ix), ix_to_word_chars)
 
     with open(train_file) as f:
         lines = f.readlines()
