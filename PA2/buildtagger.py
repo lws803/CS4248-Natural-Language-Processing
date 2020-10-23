@@ -22,21 +22,32 @@ class CharCNN(nn.Module):
     def forward(self, input):
         # TODO: Verify that the transformation is correct
         # TODO: Consider adding dropout layer here
-        output = self.embedding(input)
-        output = torch.transpose(output, 0, 1).unsqueeze(0)
+        output_batches = self.embedding(input)
+        output = torch.empty(0)
+        for batch in output_batches:
+            output = torch.cat((output, torch.transpose(batch, 0, 1).unsqueeze(0)))
         output = self.conv1(output)
         output = self.pool(output)
         return output
 
 
 class BiLSTM(nn.Module):
-    pass
+    def __init__(self, hidden_size, vocab_size):
+        super(BiLSTM, self).__init__()
+        self.hidden_size = hidden_size
+        self.embedding = nn.Embedding(vocab_size, self.hidden_size)
+
+    def forward(self, input, input_char_embeddings):
+        # TODO: Will input be a sentence here, so we can disssect and find the embeddings for
+        # char as well?
+        pass
 
 
 def train_model(train_file, model_file):
     # write your code here. You can add functions as well.
     # use torch library to save model parameters, hyperparameters, etc. to model_file
     # TODO: follow the seq2seq tutorial from pytorch
+    # TODO: run k-fold cross validation?
 
     term_count = defaultdict(int)
     pos_count = defaultdict(int)
@@ -76,8 +87,11 @@ def train_model(train_file, model_file):
         char_to_ix[chr(i)] = i
 
     char_cnn = CharCNN(hidden_size=2)
-    input_word = 'hello'
-    char_cnn(torch.tensor([char_to_ix[character] for character in input_word], dtype=torch.long))
+    sentence = ['hello', 'world']
+    char_cnn(torch.tensor([
+        [char_to_ix[character]
+        for character in input_word] for input_word in sentence
+    ], dtype=torch.long))
 
     print('Finished...')
 
