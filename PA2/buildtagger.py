@@ -103,7 +103,7 @@ def train_model(train_file, model_file):
         ix_to_word[i] = term
         word_chars = [ord(character) for character in term]
         # Padded words
-        ix_to_word_chars[i] = word_chars[0:60] + [0 for i in range(60 - len(word_chars))]
+        ix_to_word_chars[i] = word_chars[0:30] + [0 for i in range(30 - len(word_chars))]
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
