@@ -132,7 +132,6 @@ def train_model(train_file, model_file):
                 sentences.append(words)
                 sentence_tags.append(tags)
 
-    # TODO: We might have to store the word index in the model itself
     bilstm = BiLSTM(
         WORD_EMBEDDINGS_SIZE, CHAR_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
         len(word_to_ix), len(pos_to_ix), ix_to_word_chars
@@ -161,7 +160,14 @@ def train_model(train_file, model_file):
         [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
     )
     print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
-    torch.save(bilstm.state_dict(), model_file)
+    torch.save(
+        {
+            'state_dict': bilstm.state_dict(),
+            'word_to_ix': word_to_ix,
+            'ix_to_word_chars': ix_to_word_chars,
+            'ix_to_pos': ix_to_pos
+        }, model_file
+    )
     print('Finished...')
 
 
