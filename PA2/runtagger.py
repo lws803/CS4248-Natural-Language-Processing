@@ -13,7 +13,7 @@ import torch.nn.functional as F
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 WORD_EMBEDDINGS_SIZE = 50
 CHAR_EMBEDDINGS_SIZE = 50
-CHAR_CONV_FILTERS = 50
+CHAR_CONV_FILTERS = 25
 CHAR_CONV_WINDOW_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
 WORD_CHAR_PADDING = 30
