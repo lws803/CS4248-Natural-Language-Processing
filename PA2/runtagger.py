@@ -5,6 +5,14 @@ import math
 import sys
 import torch
 
+
+DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+EPOCHS = 2  # See if we really need to run 2 epochs
+WORD_EMBEDDINGS_SIZE = 10
+CHAR_EMBEDDINGS_SIZE = 5
+LSTM_HIDDEN_SIZE = 256
+
+
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
 	# use torch library to load model_file

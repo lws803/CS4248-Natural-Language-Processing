@@ -16,6 +16,7 @@ EPOCHS = 2  # See if we really need to run 2 epochs
 WORD_EMBEDDINGS_SIZE = 10
 CHAR_EMBEDDINGS_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
+WORD_CHAR_PADDING = 30
 
 class CharCNN(nn.Module):
     def __init__(self, hidden_size, l=3, k=3):
@@ -107,10 +108,16 @@ def train_model(train_file, model_file):
         ix_to_word[i] = term
         word_chars = [ord(character) for character in term]
         # Padded words
-        ix_to_word_chars[i] = word_chars[0:30] + [0 for i in range(30 - len(word_chars))]
+        ix_to_word_chars[i] = word_chars[0:WORD_CHAR_PADDING] + [
+            0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+        ]
     for i, pos in enumerate(pos_count.keys()):
         pos_to_ix[pos] = i
         ix_to_pos[i] = pos
+
+    # Add unknown words
+    ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
+    word_to_ix['<UNK'] = word_to_ix
 
     # TODO: Training, remember to split the training set first
     bilstm = BiLSTM(
@@ -141,6 +148,7 @@ def train_model(train_file, model_file):
         [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
     )
     print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
+    torch.save(bilstm.state_dict(), model_file)
     print('Finished...')
 
 
