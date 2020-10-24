@@ -3,7 +3,11 @@
 import os
 import math
 import sys
+import datetime
+
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -67,7 +71,7 @@ class BiLSTM(nn.Module):
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
 	# use torch library to load model_file
-    model_data = torch.load(model_file)
+    model_data = torch.load(model_file, map_location=DEVICE)
     state_dict = model_data['state_dict']
     word_to_ix = model_data['word_to_ix']
     ix_to_word_chars = model_data['ix_to_word_chars']
@@ -85,7 +89,10 @@ def tag_sentence(test_file, model_file, out_file):
             lines = f.readlines()
             for line in lines:
                 words = line.split()
-                prediction = bilstm([word_to_ix[word] for word in words])
+                prediction = bilstm([
+                    word_to_ix[word] if word in word_to_ix else word_to_ix['<UNK>']
+                    for word in words
+                ])
                 tags = [ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)]
                 output_str = ''
                 for index, (word, pos) in enumerate(zip(words, tags)):
