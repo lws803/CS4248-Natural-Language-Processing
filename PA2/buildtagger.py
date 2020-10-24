@@ -153,13 +153,9 @@ def train_model(train_file, model_file):
             loss.backward()
             optimizer.step()
             epoch_loss = loss
-        print(epoch_loss)
+        # print(epoch_loss)
         final_loss = epoch_loss
-    print(final_loss)
-    prediction = bilstm(
-        [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
-    )
-    print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
+    # print(final_loss)
     torch.save(
         {
             'state_dict': bilstm.state_dict(),
@@ -178,4 +174,4 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now()
     train_model(train_file, model_file)
     end_time = datetime.datetime.now()
-    print('Time:', end_time - start_time)
+    # print('Time:', end_time - start_time)
