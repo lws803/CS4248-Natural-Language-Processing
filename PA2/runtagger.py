@@ -11,18 +11,25 @@ import torch.nn.functional as F
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-WORD_EMBEDDINGS_SIZE = 10
-CHAR_EMBEDDINGS_SIZE = 5
+WORD_EMBEDDINGS_SIZE = 50
+CHAR_EMBEDDINGS_SIZE = 50
+CHAR_CONV_FILTERS = 50
+CHAR_CONV_WINDOW_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
+WORD_CHAR_PADDING = 30
+UNK_WORDS_THRESHOLD = 1
 
 
 class CharCNN(nn.Module):
-    def __init__(self, hidden_size, l=3, k=3):
+    def __init__(self):
         super(CharCNN, self).__init__()
-        self.hidden_size = hidden_size
+        self.hidden_size = CHAR_EMBEDDINGS_SIZE
         self.embedding = nn.Embedding(128, self.hidden_size)
         self.relu = nn.ReLU()
-        self.conv1 = nn.Conv1d(hidden_size, l, kernel_size=k, padding=k)
+        self.conv1 = nn.Conv1d(
+            self.hidden_size, CHAR_CONV_FILTERS, kernel_size=CHAR_CONV_WINDOW_SIZE,
+            padding=CHAR_CONV_WINDOW_SIZE
+        )
         self.pool = nn.AdaptiveMaxPool1d(1)
 
     def forward(self, input_chars_list):
@@ -36,18 +43,17 @@ class CharCNN(nn.Module):
 
 class BiLSTM(nn.Module):
     def __init__(
-        self, word_embed_size, char_embed_size, lstm_hidden_size,
+        self, word_embed_size, lstm_hidden_size,
         vocab_size, tag_size, ix_to_word_chars
     ):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
-        self.char_embed_size = char_embed_size
         self.ix_to_word_chars = ix_to_word_chars
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
-        self.char_cnn = CharCNN(char_embed_size, l=char_embed_size, k=char_embed_size)
+        self.char_cnn = CharCNN()
         self.bilstm = nn.LSTM(
-            word_embed_size + char_embed_size, lstm_hidden_size, bidirectional=True
+            word_embed_size + CHAR_CONV_FILTERS, lstm_hidden_size, bidirectional=True
         )
         self.linear = nn.Linear(lstm_hidden_size * 2, tag_size)
 
@@ -76,7 +82,7 @@ def tag_sentence(test_file, model_file, out_file):
     ix_to_pos = model_data['ix_to_pos']
 
     bilstm = BiLSTM(
-        WORD_EMBEDDINGS_SIZE, CHAR_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
+        WORD_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
         len(word_to_ix), len(ix_to_pos), ix_to_word_chars
     )
     bilstm.to(DEVICE)
