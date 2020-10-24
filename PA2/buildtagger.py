@@ -18,6 +18,7 @@ CHAR_EMBEDDINGS_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
 WORD_CHAR_PADDING = 30
 
+
 class CharCNN(nn.Module):
     def __init__(self, hidden_size, l=3, k=3):
         super(CharCNN, self).__init__()
@@ -56,7 +57,6 @@ class BiLSTM(nn.Module):
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
-        # FIXME: Handle unknown words
         list_of_word_chars = torch.tensor(
             [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
             device=DEVICE
@@ -72,7 +72,6 @@ class BiLSTM(nn.Module):
 
 def train_model(train_file, model_file):
     # use torch library to save model parameters, hyperparameters, etc. to model_file
-    # TODO: run k-fold cross validation?
     term_count = defaultdict(int)
     pos_count = defaultdict(int)
     word_to_ix = {}
@@ -117,9 +116,9 @@ def train_model(train_file, model_file):
 
     # Add unknown words
     ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
-    word_to_ix['<UNK'] = word_to_ix
+    word_to_ix['<UNK>'] = len(word_to_ix)
 
-    # TODO: Training, remember to split the training set first
+    # TODO: We might have to store the word index in the model itself
     bilstm = BiLSTM(
         WORD_EMBEDDINGS_SIZE, CHAR_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
         len(word_to_ix), len(pos_to_ix), ix_to_word_chars

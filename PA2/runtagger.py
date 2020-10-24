@@ -16,6 +16,13 @@ LSTM_HIDDEN_SIZE = 256
 def tag_sentence(test_file, model_file, out_file):
     # write your code here. You can add functions as well.
 	# use torch library to load model_file
+
+    with open(test_file) as f:
+        lines = f.readlines()
+        for line in lines:
+            words = line.split()
+            # TODO: Pass the words into the model. Model is supposed to convert it to word index
+
     print('Finished...')
 
 if __name__ == "__main__":
