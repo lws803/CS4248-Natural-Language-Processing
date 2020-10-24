@@ -140,7 +140,6 @@ def train_model(train_file, model_file):
 
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
-    final_loss = None
     for i in range(EPOCHS):
         epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
@@ -153,9 +152,7 @@ def train_model(train_file, model_file):
             loss.backward()
             optimizer.step()
             epoch_loss = loss
-        # print(epoch_loss)
-        final_loss = epoch_loss
-    # print(final_loss)
+        print(epoch_loss)
     torch.save(
         {
             'state_dict': bilstm.state_dict(),
@@ -174,4 +171,4 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now()
     train_model(train_file, model_file)
     end_time = datetime.datetime.now()
-    # print('Time:', end_time - start_time)
+    print('Time:', end_time - start_time)

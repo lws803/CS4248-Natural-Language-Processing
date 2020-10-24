@@ -112,4 +112,4 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now()
     tag_sentence(test_file, model_file, out_file)
     end_time = datetime.datetime.now()
-    # print('Time:', end_time - start_time)
+    print('Time:', end_time - start_time)
