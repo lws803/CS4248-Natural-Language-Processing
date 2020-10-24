@@ -30,7 +30,6 @@ class CharCNN(nn.Module):
         self.pool = nn.AdaptiveMaxPool1d(1)
 
     def forward(self, input_chars_list):
-        # TODO: Consider adding dropout layer here
         output = self.embedding(input_chars_list)
         output = torch.transpose(output, 2, 1)  # for list of words
         # output = torch.transpose(output, 0, 1)

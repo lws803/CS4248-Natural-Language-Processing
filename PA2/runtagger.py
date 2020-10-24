@@ -26,7 +26,6 @@ class CharCNN(nn.Module):
         self.pool = nn.AdaptiveMaxPool1d(1)
 
     def forward(self, input_chars_list):
-        # TODO: Consider adding dropout layer here
         output = self.embedding(input_chars_list)
         output = torch.transpose(output, 2, 1)  # for list of words
         # output = torch.transpose(output, 0, 1)
@@ -96,9 +95,9 @@ def tag_sentence(test_file, model_file, out_file):
                 output_str = ''
                 for index, (word, pos) in enumerate(zip(words, tags)):
                     if (index == len(words) - 1):
-                        output_str += f'{word}/{pos}\n'
+                        output_str += '{}/{}\n'.format(word, pos)
                     else:
-                        output_str += f'{word}/{pos} '
+                        output_str += '{}/{} '.format(word, pos)
                 f_output.write(output_str)
 
     print('Finished...')
