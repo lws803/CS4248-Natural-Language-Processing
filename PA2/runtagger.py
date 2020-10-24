@@ -11,7 +11,6 @@ import torch.nn.functional as F
 
 
 DEVICE = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-EPOCHS = 2  # See if we really need to run 2 epochs
 WORD_EMBEDDINGS_SIZE = 10
 CHAR_EMBEDDINGS_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
