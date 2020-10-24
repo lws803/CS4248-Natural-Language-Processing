@@ -16,6 +16,9 @@ EPOCHS = 2  # See if we really need to run 2 epochs
 WORD_EMBEDDINGS_SIZE = 10
 CHAR_EMBEDDINGS_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
+WORD_CHAR_PADDING = 30
+UNK_WORDS_THRESHOLD = 1
+
 
 class CharCNN(nn.Module):
     def __init__(self, hidden_size, l=3, k=3):
@@ -55,7 +58,6 @@ class BiLSTM(nn.Module):
 
     def forward(self, input_words):
         output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
-        # FIXME: Handle unknown words
         list_of_word_chars = torch.tensor(
             [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
             device=DEVICE
@@ -71,7 +73,6 @@ class BiLSTM(nn.Module):
 
 def train_model(train_file, model_file):
     # use torch library to save model parameters, hyperparameters, etc. to model_file
-    # TODO: run k-fold cross validation?
     term_count = defaultdict(int)
     pos_count = defaultdict(int)
     word_to_ix = {}
@@ -97,22 +98,40 @@ def train_model(train_file, model_file):
 
                     term_count[term] += 1
                     pos_count[pos] += 1
+
+        for i, term in enumerate(term_count.keys()):
+            word_to_ix[term] = i
+            ix_to_word[i] = term
+            word_chars = [ord(character) for character in term]
+            # Padded words
+            ix_to_word_chars[i] = word_chars[0:WORD_CHAR_PADDING] + [
+                0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+            ]
+        for i, pos in enumerate(pos_count.keys()):
+            pos_to_ix[pos] = i
+            ix_to_pos[i] = pos
+
+        # Add unknown words
+        ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
+        word_to_ix['<UNK>'] = len(word_to_ix)
+
+        with open(train_file) as f:
+            lines = f.readlines()
+            for line in lines:
+                tags = []
+                words = []
+                for term_pos_pairs in line.split():
+                    term_pos_pairs = term_pos_pairs.split('/')
+                    pos = term_pos_pairs[-1]
+                    term_pos_pairs.pop()
+                    term = '/'.join(term_pos_pairs)
+                    if term_count[term] <= UNK_WORDS_THRESHOLD:
+                        term = '<UNK>'
                     words.append(term)
                     tags.append(pos)
                 sentences.append(words)
                 sentence_tags.append(tags)
 
-    for i, term in enumerate(term_count.keys()):
-        word_to_ix[term] = i
-        ix_to_word[i] = term
-        word_chars = [ord(character) for character in term]
-        # Padded words
-        ix_to_word_chars[i] = word_chars[0:30] + [0 for i in range(30 - len(word_chars))]
-    for i, pos in enumerate(pos_count.keys()):
-        pos_to_ix[pos] = i
-        ix_to_pos[i] = pos
-
-    # TODO: Training, remember to split the training set first
     bilstm = BiLSTM(
         WORD_EMBEDDINGS_SIZE, CHAR_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
         len(word_to_ix), len(pos_to_ix), ix_to_word_chars
@@ -121,7 +140,6 @@ def train_model(train_file, model_file):
 
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(bilstm.parameters())
-    final_loss = None
     for i in range(EPOCHS):
         epoch_loss = None
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
@@ -135,12 +153,14 @@ def train_model(train_file, model_file):
             optimizer.step()
             epoch_loss = loss
         print(epoch_loss)
-        final_loss = epoch_loss
-    print(final_loss)
-    prediction = bilstm(
-        [word_to_ix[word] for word in 'hello world how are you doing today ?'.split()]
+    torch.save(
+        {
+            'state_dict': bilstm.state_dict(),
+            'word_to_ix': word_to_ix,
+            'ix_to_word_chars': ix_to_word_chars,
+            'ix_to_pos': ix_to_pos
+        }, model_file
     )
-    print([ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)])
     print('Finished...')
 
 
