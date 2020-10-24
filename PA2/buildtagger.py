@@ -17,6 +17,7 @@ WORD_EMBEDDINGS_SIZE = 10
 CHAR_EMBEDDINGS_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
 WORD_CHAR_PADDING = 30
+UNK_WORDS_THRESHOLD = 1
 
 
 class CharCNN(nn.Module):
@@ -97,26 +98,39 @@ def train_model(train_file, model_file):
 
                     term_count[term] += 1
                     pos_count[pos] += 1
+
+        for i, term in enumerate(term_count.keys()):
+            word_to_ix[term] = i
+            ix_to_word[i] = term
+            word_chars = [ord(character) for character in term]
+            # Padded words
+            ix_to_word_chars[i] = word_chars[0:WORD_CHAR_PADDING] + [
+                0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+            ]
+        for i, pos in enumerate(pos_count.keys()):
+            pos_to_ix[pos] = i
+            ix_to_pos[i] = pos
+
+        # Add unknown words
+        ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
+        word_to_ix['<UNK>'] = len(word_to_ix)
+
+        with open(train_file) as f:
+            lines = f.readlines()
+            for line in lines:
+                tags = []
+                words = []
+                for term_pos_pairs in line.split():
+                    term_pos_pairs = term_pos_pairs.split('/')
+                    pos = term_pos_pairs[-1]
+                    term_pos_pairs.pop()
+                    term = '/'.join(term_pos_pairs)
+                    if term_count[term] <= UNK_WORDS_THRESHOLD:
+                        term = '<UNK>'
                     words.append(term)
                     tags.append(pos)
                 sentences.append(words)
                 sentence_tags.append(tags)
-
-    for i, term in enumerate(term_count.keys()):
-        word_to_ix[term] = i
-        ix_to_word[i] = term
-        word_chars = [ord(character) for character in term]
-        # Padded words
-        ix_to_word_chars[i] = word_chars[0:WORD_CHAR_PADDING] + [
-            0 for i in range(WORD_CHAR_PADDING - len(word_chars))
-        ]
-    for i, pos in enumerate(pos_count.keys()):
-        pos_to_ix[pos] = i
-        ix_to_pos[i] = pos
-
-    # Add unknown words
-    ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
-    word_to_ix['<UNK>'] = len(word_to_ix)
 
     # TODO: We might have to store the word index in the model itself
     bilstm = BiLSTM(
