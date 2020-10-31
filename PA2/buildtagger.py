@@ -18,7 +18,7 @@ CHAR_EMBEDDINGS_SIZE = 50
 CHAR_CONV_FILTERS = 25
 CHAR_CONV_WINDOW_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
-WORD_CHAR_PADDING = 30
+WORD_CHAR_PADDING = 60
 UNK_WORDS_THRESHOLD = 1
 
 
@@ -115,7 +115,7 @@ def train_model(train_file, model_file):
             ix_to_pos[i] = pos
 
         # Add unknown words
-        ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(30)]
+        ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(WORD_CHAR_PADDING)]
         word_to_ix['<UNK>'] = len(word_to_ix)
 
         with open(train_file) as f:
