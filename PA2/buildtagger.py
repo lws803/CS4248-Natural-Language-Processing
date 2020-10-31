@@ -46,11 +46,12 @@ class CharCNN(nn.Module):
 class BiLSTM(nn.Module):
     def __init__(
         self, word_embed_size, lstm_hidden_size,
-        vocab_size, tag_size, ix_to_word_chars
+        vocab_size, tag_size, word_to_ix, word_freq
     ):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
-        self.ix_to_word_chars = ix_to_word_chars
+        self.word_to_ix = word_to_ix
+        self.word_freq = word_freq
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
         self.char_cnn = CharCNN()
@@ -60,9 +61,27 @@ class BiLSTM(nn.Module):
         self.linear = nn.Linear(lstm_hidden_size * 2, tag_size)
 
     def forward(self, input_words):
-        output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
+        indexed_words = []
+        for word in input_words:
+            if self.word_freq[word] <= UNK_WORDS_THRESHOLD:
+                indexed_words.append(self.word_to_ix['<UNK>'])
+            else:
+                indexed_words.append(self.word_to_ix[word])
+
+        output = self.embedding(torch.tensor(
+            indexed_words, dtype=torch.long, device=DEVICE)
+        )
+        word_chars_batch = []
+        for word in input_words:
+            word_chars = [ord(character) for character in word]
+            # Padded words
+            word_chars_batch.append(
+                word_chars[0:WORD_CHAR_PADDING] + [
+                    0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+                ]
+            )
         list_of_word_chars = torch.tensor(
-            [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
+            word_chars_batch, dtype=torch.long,
             device=DEVICE
         )
         char_embeddings = self.char_cnn(list_of_word_chars)
@@ -105,17 +124,11 @@ def train_model(train_file, model_file):
         for i, term in enumerate(term_count.keys()):
             word_to_ix[term] = i
             ix_to_word[i] = term
-            word_chars = [ord(character) for character in term]
-            # Padded words
-            ix_to_word_chars[i] = word_chars[0:WORD_CHAR_PADDING] + [
-                0 for i in range(WORD_CHAR_PADDING - len(word_chars))
-            ]
         for i, pos in enumerate(pos_count.keys()):
             pos_to_ix[pos] = i
             ix_to_pos[i] = pos
 
         # Add unknown words
-        ix_to_word_chars[len(ix_to_word_chars)] = [0 for i in range(WORD_CHAR_PADDING)]
         word_to_ix['<UNK>'] = len(word_to_ix)
 
         with open(train_file) as f:
@@ -128,8 +141,6 @@ def train_model(train_file, model_file):
                     pos = term_pos_pairs[-1]
                     term_pos_pairs.pop()
                     term = '/'.join(term_pos_pairs)
-                    if term_count[term] <= UNK_WORDS_THRESHOLD:
-                        term = '<UNK>'
                     words.append(term)
                     tags.append(pos)
                 sentences.append(words)
@@ -137,7 +148,7 @@ def train_model(train_file, model_file):
 
     bilstm = BiLSTM(
         WORD_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
-        len(word_to_ix), len(pos_to_ix), ix_to_word_chars
+        len(word_to_ix), len(pos_to_ix), word_to_ix, term_count
     )
     bilstm.to(DEVICE)
 
@@ -148,7 +159,7 @@ def train_model(train_file, model_file):
         for index, (words, tags) in enumerate(zip(sentences, sentence_tags)):
             bilstm.zero_grad()
 
-            tag_scores = bilstm([word_to_ix[word] for word in words])
+            tag_scores = bilstm(words)
             loss = loss_function(tag_scores, torch.tensor(
                 [pos_to_ix[tag] for tag in tags], device=DEVICE
             ))
@@ -160,8 +171,8 @@ def train_model(train_file, model_file):
         {
             'state_dict': bilstm.state_dict(),
             'word_to_ix': word_to_ix,
-            'ix_to_word_chars': ix_to_word_chars,
-            'ix_to_pos': ix_to_pos
+            'ix_to_pos': ix_to_pos,
+            'word_freq': term_count,
         }, model_file
     )
     print('Finished...')

@@ -16,6 +16,8 @@ CHAR_EMBEDDINGS_SIZE = 50
 CHAR_CONV_FILTERS = 25
 CHAR_CONV_WINDOW_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
+UNK_WORDS_THRESHOLD = 1
+WORD_CHAR_PADDING = 60
 
 
 class CharCNN(nn.Module):
@@ -42,11 +44,12 @@ class CharCNN(nn.Module):
 class BiLSTM(nn.Module):
     def __init__(
         self, word_embed_size, lstm_hidden_size,
-        vocab_size, tag_size, ix_to_word_chars
+        vocab_size, tag_size, word_to_ix, word_freq
     ):
         super(BiLSTM, self).__init__()
         self.word_embed_size = word_embed_size
-        self.ix_to_word_chars = ix_to_word_chars
+        self.word_to_ix = word_to_ix
+        self.word_freq = word_freq
 
         self.embedding = nn.Embedding(vocab_size, self.word_embed_size)
         self.char_cnn = CharCNN()
@@ -56,9 +59,27 @@ class BiLSTM(nn.Module):
         self.linear = nn.Linear(lstm_hidden_size * 2, tag_size)
 
     def forward(self, input_words):
-        output = self.embedding(torch.tensor(input_words, dtype=torch.long, device=DEVICE))
+        indexed_words = []
+        for word in input_words:
+            if self.word_freq[word] <= UNK_WORDS_THRESHOLD:
+                indexed_words.append(self.word_to_ix['<UNK>'])
+            else:
+                indexed_words.append(self.word_to_ix[word])
+
+        output = self.embedding(torch.tensor(
+            indexed_words, dtype=torch.long, device=DEVICE)
+        )
+        word_chars_batch = []
+        for word in input_words:
+            word_chars = [ord(character) for character in word]
+            # Padded words
+            word_chars_batch.append(
+                word_chars[0:WORD_CHAR_PADDING] + [
+                    0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+                ]
+            )
         list_of_word_chars = torch.tensor(
-            [self.ix_to_word_chars[idx] for idx in input_words], dtype=torch.long,
+            word_chars_batch, dtype=torch.long,
             device=DEVICE
         )
         char_embeddings = self.char_cnn(list_of_word_chars)
@@ -76,12 +97,12 @@ def tag_sentence(test_file, model_file, out_file):
     model_data = torch.load(model_file, map_location=DEVICE)
     state_dict = model_data['state_dict']
     word_to_ix = model_data['word_to_ix']
-    ix_to_word_chars = model_data['ix_to_word_chars']
     ix_to_pos = model_data['ix_to_pos']
+    word_freq = model_data['word_freq']
 
     bilstm = BiLSTM(
         WORD_EMBEDDINGS_SIZE, LSTM_HIDDEN_SIZE,
-        len(word_to_ix), len(ix_to_pos), ix_to_word_chars
+        len(word_to_ix), len(ix_to_pos), word_to_ix, word_freq
     )
     bilstm.to(DEVICE)
     bilstm.load_state_dict(state_dict)
@@ -91,10 +112,7 @@ def tag_sentence(test_file, model_file, out_file):
             lines = f.readlines()
             for line in lines:
                 words = line.split()
-                prediction = bilstm([
-                    word_to_ix[word] if word in word_to_ix else word_to_ix['<UNK>']
-                    for word in words
-                ])
+                prediction = bilstm(words)
                 tags = [ix_to_pos[tag.item()] for tag in torch.argmax(prediction, dim=1)]
                 output_str = ''
                 for index, (word, pos) in enumerate(zip(words, tags)):
