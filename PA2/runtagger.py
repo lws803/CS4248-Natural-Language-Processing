@@ -17,7 +17,6 @@ CHAR_CONV_FILTERS = 25
 CHAR_CONV_WINDOW_SIZE = 5
 LSTM_HIDDEN_SIZE = 256
 UNK_WORDS_THRESHOLD = 1
-WORD_CHAR_PADDING = 60
 
 
 class CharCNN(nn.Module):
@@ -70,12 +69,13 @@ class BiLSTM(nn.Module):
             indexed_words, dtype=torch.long, device=DEVICE)
         )
         word_chars_batch = []
+        max_len_word = max([len(word) for word in input_words])
         for word in input_words:
             word_chars = [ord(character) for character in word]
             # Padded words
             word_chars_batch.append(
-                word_chars[0:WORD_CHAR_PADDING] + [
-                    0 for i in range(WORD_CHAR_PADDING - len(word_chars))
+                word_chars[0:max_len_word] + [
+                    0 for i in range(max_len_word - len(word_chars))
                 ]
             )
         list_of_word_chars = torch.tensor(
